@@ -1,27 +1,30 @@
 import os
 import json
-import random
-import threading
+import time
 import logging
-from datetime import datetime, timedelta
+import threading
+
+from datetime import datetime
 from zoneinfo import ZoneInfo
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
+from urllib.error import HTTPError, URLError
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
 
 import telebot
 from telebot import types
 
 
-# =========================
+# =========================================================
 # НАЛАШТУВАННЯ
-# =========================
+# =========================================================
 
-BOT_TOKEN = os.environ['BOT_TOKEN']
-ADMIN_CHAT_ID = os.environ.get('ADMIN_CHAT_ID', '367762402')
+# На Render додай Environment Variable: BOT_TOKEN
+BOT_TOKEN = os.environ["BOT_TOKEN"]
 
-DEFAULT_GROUP = '35.1'
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "367762402")
+
+DEFAULT_GROUP = os.environ.get("DEFAULT_GROUP", "35.1")
 
 YASNO_API = (
     "https://app.yasno.ua/api/blackout-service/public/"
@@ -30,62 +33,82 @@ YASNO_API = (
 
 KYIV_TZ = ZoneInfo("Europe/Kyiv")
 
-API_HOST = "127.0.0.1"
-API_PORT = 8080
+API_HOST = "0.0.0.0"
+API_PORT = int(os.environ.get("PORT", "8080"))
 
 CACHE_SECONDS = 60
+REQUEST_TIMEOUT = 15
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
+    format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Черги користувачів зберігаються в пам'яті.
-# Після перезапуску бота вони скинуться.
+# Вибрані черги зберігаються в оперативній пам'яті.
+# Після перезапуску сервісу вони скидаються.
 user_groups = {}
 
-# Кеш відповіді YASNO
+# Кеш даних YASNO
 yasno_cache = {
     "timestamp": 0,
-    "data": None
+    "data": None,
 }
 
 cache_lock = threading.Lock()
 
 
-# =========================
-# ЧАС
-# =========================
+# =========================================================
+# ДОПОМІЖНІ ФУНКЦІЇ
+# =========================================================
 
 def kyiv_now():
     return datetime.now(KYIV_TZ)
 
 
-def format_date(date_obj):
-    return date_obj.strftime("%d.%m.%Y")
+def normalize_yasno_response(data):
+    """
+    За потреби розгортає типові обгортки відповіді API.
+    Основні дані очікуються як словник черг:
+    {
+        "1.1": {
+            "today": {"slots": [...]},
+            "tomorrow": {"slots": [...]}
+        }
+    }
+    """
+    if not isinstance(data, dict):
+        return None
+
+    # Не розгортаємо data, якщо верхній рівень уже містить черги.
+    if any(
+        isinstance(value, dict)
+        and ("today" in value or "tomorrow" in value)
+        for value in data.values()
+    ):
+        return data
+
+    nested = data.get("data")
+
+    if isinstance(nested, dict):
+        return nested
+
+    return data
 
 
-def get_target_date(day_offset=0):
-    return (kyiv_now() + timedelta(days=day_offset)).date()
-
-
-# =========================
-# ЗАПИТ ДО YASNO
-# =========================
-
-def fetch_yasno_data():
-    """Отримує графік YASNO з кешуванням."""
-    now_timestamp = datetime.now().timestamp()
+def fetch_yasno_data(force_refresh=False):
+    """Завантажує графік YASNO з кешуванням."""
+    now = time.time()
 
     with cache_lock:
         cached_data = yasno_cache["data"]
-        cache_timestamp = yasno_cache["timestamp"]
+        cached_at = yasno_cache["timestamp"]
 
         if (
-            cached_data is not None
-            and now_timestamp - cache_timestamp < CACHE_SECONDS
+            not force_refresh
+            and cached_data is not None
+            and now - cached_at < CACHE_SECONDS
         ):
             return cached_data
 
@@ -98,185 +121,243 @@ def fetch_yasno_data():
     )
 
     try:
-        with urlopen(request, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+            raw_data = json.loads(
+                response.read().decode("utf-8")
+            )
+
+        data = normalize_yasno_response(raw_data)
+
+        if not isinstance(data, dict):
+            raise ValueError("Неочікуваний формат відповіді YASNO")
 
         with cache_lock:
             yasno_cache["data"] = data
-            yasno_cache["timestamp"] = now_timestamp
+            yasno_cache["timestamp"] = time.time()
 
         return data
 
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
-        logging.exception("Помилка запиту до YASNO: %s", error)
+    except (
+        HTTPError,
+        URLError,
+        TimeoutError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as error:
+        logging.warning("Помилка отримання даних YASNO: %s", error)
 
-        # Якщо запит не вдався, повертаємо кешовані дані, якщо вони є.
         with cache_lock:
+            # Повертаємо кеш, якщо він є, навіть якщо він застарів.
             if yasno_cache["data"] is not None:
                 return yasno_cache["data"]
 
         return None
 
     except Exception:
-        logging.exception("Неочікувана помилка під час запиту до YASNO")
+        logging.exception("Невідома помилка під час запиту YASNO")
         return None
 
 
-def extract_schedule(data, group, target_date):
-    """
-    Витягує графік для черги та дати.
-
-    Структура відповіді YASNO може змінюватися, тому тут
-    передбачена обробка кількох типових варіантів.
-    """
+def get_groups(data=None):
+    """Повертає черги, які реально є у відповіді YASNO."""
     if data is None:
-        return None
+        data = fetch_yasno_data()
 
-    date_string = target_date.isoformat()
+    if not isinstance(data, dict):
+        return []
 
-    if isinstance(data, list):
-        records = data
-    elif isinstance(data, dict):
-        records = (
-            data.get("outages")
-            or data.get("data")
-            or data.get("plannedOutages")
-            or []
-        )
+    groups = []
 
-        if isinstance(records, dict):
-            records = records.get("outages", [])
-    else:
-        return None
-
-    if not isinstance(records, list):
-        return None
-
-    matching_records = []
-
-    for record in records:
-        if not isinstance(record, dict):
+    for key, value in data.items():
+        if not isinstance(value, dict):
             continue
 
-        record_group = (
-            record.get("group")
-            or record.get("queue")
-            or record.get("shutdownGroup")
-            or record.get("groupName")
+        if (
+            isinstance(value.get("today"), dict)
+            or isinstance(value.get("tomorrow"), dict)
+        ):
+            groups.append(str(key))
+
+    def sort_key(group):
+        return tuple(
+            int(part) if part.isdigit() else part
+            for part in group.split(".")
         )
 
-        record_date = (
-            record.get("date")
-            or record.get("shutdownDate")
-            or record.get("day")
-        )
+    return sorted(groups, key=sort_key)
 
-        if record_group is not None and str(record_group) != str(group):
-            continue
 
-        if record_date is not None and not str(record_date).startswith(date_string):
-            continue
+def get_group_day_data(group, day, data=None):
+    """Повертає графік конкретної черги на today або tomorrow."""
+    if day not in ("today", "tomorrow"):
+        return None
 
-        matching_records.append(record)
+    if data is None:
+        data = fetch_yasno_data()
 
-    if matching_records:
-        return matching_records
+    if not isinstance(data, dict):
+        return None
 
-    # Якщо API повертає графік у вкладеній структурі,
-    # повертаємо дані для окремої подальшої перевірки.
-    return {
-        "message": (
-            "Не вдалося визначити структуру графіка у відповіді YASNO. "
-            "Можливо, формат API змінився."
-        ),
-        "raw": data,
+    group_data = data.get(group)
+
+    if not isinstance(group_data, dict):
+        return None
+
+    day_data = group_data.get(day)
+
+    if not isinstance(day_data, dict):
+        return None
+
+    return day_data
+
+
+def get_schedule_payload(group, day):
+    """
+    Формує формат відповіді для HTML:
+    {
+        "group": "1.1",
+        "day": "today",
+        "date": "...",
+        "status": "...",
+        "updatedOn": "...",
+        "slots": [...]
     }
+    """
+    data = fetch_yasno_data()
+
+    if data is None:
+        return {
+            "error": "Не вдалося отримати дані YASNO",
+        }, 502
+
+    group_data = data.get(group)
+
+    if not isinstance(group_data, dict):
+        return {
+            "error": f"Чергу {group} не знайдено у відповіді YASNO",
+        }, 404
+
+    day_data = group_data.get(day)
+
+    if not isinstance(day_data, dict):
+        return {
+            "error": f"Графік на {day} поки недоступний",
+        }, 503
+
+    slots = day_data.get("slots")
+
+    if not isinstance(slots, list):
+        return {
+            "error": "YASNO повернув графік у невідомому форматі",
+        }, 502
+
+    # Перевіряємо, що кожен інтервал має коректні межі.
+    valid_slots = []
+
+    for slot in slots:
+        if not isinstance(slot, dict):
+            continue
+
+        start = slot.get("start")
+        end = slot.get("end")
+
+        if (
+            isinstance(start, (int, float))
+            and not isinstance(start, bool)
+            and isinstance(end, (int, float))
+            and not isinstance(end, bool)
+            and 0 <= start < end <= 1440
+        ):
+            valid_slots.append(slot)
+
+    return {
+        "group": group,
+        "day": day,
+        "date": day_data.get("date"),
+        "status": day_data.get("status"),
+        "updatedOn": group_data.get("updatedOn"),
+        "slots": valid_slots,
+    }, 200
 
 
-def format_schedule(schedule, group, target_date):
-    if schedule is None:
-        return (
-            "Не вдалося отримати графік YASNO. "
-            "Спробуйте ще раз трохи пізніше."
-        )
+def format_minutes(minutes):
+    hours = int(minutes) // 60
+    mins = int(minutes) % 60
+    return f"{hours:02d}:{mins:02d}"
 
-    if isinstance(schedule, dict) and "message" in schedule:
-        logging.warning("Неочікуваний формат відповіді YASNO")
-        return (
-            f"📅 Дата: {format_date(target_date)}\n"
-            f"🔌 Черга: {group}\n\n"
-            "Не вдалося розпізнати формат графіка YASNO. "
-            "Потрібно перевірити актуальну структуру відповіді API."
-        )
+
+def format_schedule_for_telegram(group, day):
+    payload, status_code = get_schedule_payload(group, day)
+
+    if status_code != 200:
+        return payload.get("error", "Не вдалося отримати графік.")
+
+    slots = payload["slots"]
+    status = payload.get("status", "Статус невідомий")
+    date = payload.get("date") or "Дата не вказана"
+
+    day_label = "Сьогодні" if day == "today" else "Завтра"
 
     lines = [
-        f"📅 Дата: {format_date(target_date)}",
+        f"📅 {day_label}: {date}",
         f"🔌 Черга: {group}",
+        f"📊 Статус: {status}",
         "",
     ]
 
-    found_period = False
+    outages = [
+        slot for slot in slots
+        if str(slot.get("type", "")).lower().replace("_", "")
+        in ("definite", "definiteoutage")
+    ]
 
-    for record in schedule:
-        start = (
-            record.get("start")
-            or record.get("startTime")
-            or record.get("from")
-        )
-        end = (
-            record.get("end")
-            or record.get("endTime")
-            or record.get("to")
-        )
+    outages.sort(key=lambda slot: slot["start"])
 
-        if start or end:
-            lines.append(f"⏰ {start or '?'} — {end or '?'}")
-            found_period = True
+    if outages:
+        lines.append("🔴 Періоди відключень:")
 
-        status = record.get("status") or record.get("type")
-        if status:
-            lines.append(f"Статус: {status}")
-
-    if not found_period:
+        for slot in outages:
+            lines.append(
+                f"• {format_minutes(slot['start'])}"
+                f"–{format_minutes(slot['end'])}"
+            )
+    else:
         lines.append(
-            "Графік отримано, але формат інтервалів не розпізнано."
+            "У даних немає визначених періодів відключення."
         )
+
+    lines.extend([
+        "",
+        "ℹ️ Це плановий графік, а не підтвердження "
+        "фактичної наявності електрики.",
+    ])
 
     return "\n".join(lines)
 
 
-def get_schedule_text(group, day_offset=0):
-    target_date = get_target_date(day_offset)
-    data = fetch_yasno_data()
-
-    schedule = extract_schedule(data, group, target_date)
-
-    return format_schedule(schedule, group, target_date)
-
-
-# =========================
+# =========================================================
 # ECOFLOW — ПОКИ ЗАГЛУШКА
-# =========================
+# =========================================================
 
 def get_ecoflow_status():
-    """
-    Тимчасова заглушка.
-    Пізніше тут можна підключити реальні дані EcoFlow.
-    """
     return {
         "connected": False,
-        "message": "Інтеграцію EcoFlow ще не налаштовано."
+        "message": "Інтеграцію EcoFlow ще не налаштовано.",
     }
 
 
-# =========================
+# =========================================================
 # TELEGRAM-БОТ
-# =========================
+# =========================================================
+
+def get_user_group(user_id):
+    return user_groups.get(user_id, DEFAULT_GROUP)
+
 
 def main_keyboard():
     keyboard = types.ReplyKeyboardMarkup(
         resize_keyboard=True,
-        row_width=2
+        row_width=2,
     )
 
     keyboard.add(
@@ -292,26 +373,22 @@ def main_keyboard():
     return keyboard
 
 
-def get_user_group(user_id):
-    return user_groups.get(user_id, DEFAULT_GROUP)
-
-
-def save_user_group(user_id, group):
-    user_groups[user_id] = group
+def is_valid_group(group):
+    return group in get_groups()
 
 
 @bot.message_handler(commands=["start", "help"])
 def start_command(message):
-    user_id = message.from_user.id
-    group = get_user_group(user_id)
+    group = get_user_group(message.from_user.id)
 
     bot.send_message(
         message.chat.id,
         (
             "Привіт! 👋\n\n"
             "Я допомагаю переглядати графік відключень YASNO.\n\n"
-            f"Твоя поточна черга: {group}\n\n"
-            "Обери дію в меню нижче."
+            f"Твоя черга: {group}\n\n"
+            "Обери дію в меню або введи номер черги, "
+            "наприклад 1.1."
         ),
         reply_markup=main_keyboard(),
     )
@@ -321,33 +398,51 @@ def start_command(message):
 def group_command(message):
     bot.send_message(
         message.chat.id,
-        "Введи свою чергу, наприклад: 3.1 або 5.2"
+        "Введи номер своєї черги, наприклад 1.1.",
+        reply_markup=main_keyboard(),
     )
 
 
-@bot.message_handler(func=lambda message: message.text == "📅 Сьогодні")
+@bot.message_handler(commands=["refresh"])
+def refresh_command(message):
+    fetch_yasno_data(force_refresh=True)
+
+    bot.send_message(
+        message.chat.id,
+        "Спробував оновити дані YASNO.",
+        reply_markup=main_keyboard(),
+    )
+
+
+@bot.message_handler(
+    func=lambda message: message.text == "📅 Сьогодні"
+)
 def today_handler(message):
     group = get_user_group(message.from_user.id)
 
     bot.send_message(
         message.chat.id,
-        get_schedule_text(group, 0),
+        format_schedule_for_telegram(group, "today"),
         reply_markup=main_keyboard(),
     )
 
 
-@bot.message_handler(func=lambda message: message.text == "📅 Завтра")
+@bot.message_handler(
+    func=lambda message: message.text == "📅 Завтра"
+)
 def tomorrow_handler(message):
     group = get_user_group(message.from_user.id)
 
     bot.send_message(
         message.chat.id,
-        get_schedule_text(group, 1),
+        format_schedule_for_telegram(group, "tomorrow"),
         reply_markup=main_keyboard(),
     )
 
 
-@bot.message_handler(func=lambda message: message.text == "🔌 Моя черга")
+@bot.message_handler(
+    func=lambda message: message.text == "🔌 Моя черга"
+)
 def my_group_handler(message):
     group = get_user_group(message.from_user.id)
 
@@ -358,15 +453,19 @@ def my_group_handler(message):
     )
 
 
-@bot.message_handler(func=lambda message: message.text == "✏️ Змінити чергу")
+@bot.message_handler(
+    func=lambda message: message.text == "✏️ Змінити чергу"
+)
 def change_group_handler(message):
     bot.send_message(
         message.chat.id,
-        "Введи номер черги, наприклад 3.1 або 5.2."
+        "Введи номер черги, наприклад 1.1."
     )
 
 
-@bot.message_handler(func=lambda message: message.text == "🔋 EcoFlow")
+@bot.message_handler(
+    func=lambda message: message.text == "🔋 EcoFlow"
+)
 def ecoflow_handler(message):
     status = get_ecoflow_status()
 
@@ -377,55 +476,74 @@ def ecoflow_handler(message):
     )
 
 
-@bot.message_handler(func=lambda message: message.text is not None)
+@bot.message_handler(
+    content_types=["text"],
+    func=lambda message: bool(message.text)
+)
 def text_handler(message):
     text = message.text.strip()
     user_id = message.from_user.id
 
-    # Не трактуємо довільний текст як номер черги.
-    valid_groups = {
-        f"{major}.{minor}"
-        for major in range(1, 7)
-        for minor in range(1, 3)
-    }
+    if text.startswith("/"):
+        return
 
-    if text in valid_groups:
-        save_user_group(user_id, text)
-
+    # Не дозволяємо випадковому тексту змінити чергу.
+    if not is_valid_group(text):
         bot.send_message(
             message.chat.id,
-            f"✅ Чергу змінено на {text}.",
+            (
+                "Не знайшов такої черги у поточних даних YASNO.\n"
+                "Перевір номер або спробуй пізніше."
+            ),
             reply_markup=main_keyboard(),
         )
         return
 
+    user_groups[user_id] = text
+
     bot.send_message(
         message.chat.id,
-        "Не розпізнав команду. Скористайся кнопками меню "
-        "або введи номер черги, наприклад 3.1.",
+        f"✅ Чергу змінено на {text}.",
         reply_markup=main_keyboard(),
     )
 
 
-# =========================
-# HTTP API
-# =========================
+# =========================================================
+# HTTP API ДЛЯ HTML POWER / KYIV
+# =========================================================
 
 class APIHandler(BaseHTTPRequestHandler):
+
     def send_json(self, status_code, payload):
         body = json.dumps(
             payload,
-            ensure_ascii=False
+            ensure_ascii=False,
         ).encode("utf-8")
 
         self.send_response(status_code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header(
+            "Content-Type",
+            "application/json; charset=utf-8",
+        )
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
+
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
 
         if parsed.path == "/health":
             self.send_json(200, {
@@ -434,68 +552,68 @@ class APIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if parsed.path == "/groups":
+            data = fetch_yasno_data()
+
+            if data is None:
+                self.send_json(502, {
+                    "error": "Не вдалося отримати дані YASNO",
+                    "groups": [],
+                })
+                return
+
+            self.send_json(200, {
+                "groups": get_groups(data),
+            })
+            return
+
+        if parsed.path == "/schedule":
+            group = params.get("group", [DEFAULT_GROUP])[0]
+            day = params.get("day", ["today"])[0]
+
+            if day not in ("today", "tomorrow"):
+                self.send_json(400, {
+                    "error": "Параметр day має бути today або tomorrow",
+                })
+                return
+
+            payload, status_code = get_schedule_payload(group, day)
+            self.send_json(status_code, payload)
+            return
+
         if parsed.path == "/ecoflow":
             self.send_json(200, get_ecoflow_status())
             return
 
-        if parsed.path == "/schedule":
-            from urllib.parse import parse_qs
-
-            params = parse_qs(parsed.query)
-            group = params.get("group", [DEFAULT_GROUP])[0]
-            day = params.get("day", ["0"])[0]
-
-            valid_groups = {
-                f"{major}.{minor}"
-                for major in range(1, 7)
-                for minor in range(1, 3)
-            }
-
-            if group not in valid_groups:
-                self.send_json(400, {
-                    "error": "Invalid group",
-                    "allowed_example": "3.1",
-                })
-                return
-
-            if day not in {"0", "1"}:
-                self.send_json(400, {
-                    "error": "Parameter day must be 0 or 1"
-                })
-                return
-
-            target_date = get_target_date(int(day))
-            data = fetch_yasno_data()
-            schedule = extract_schedule(data, group, target_date)
-
-            self.send_json(200, {
-                "group": group,
-                "date": target_date.isoformat(),
-                "schedule": schedule,
-            })
-            return
-
-        self.send_json(404, {"error": "Not found"})
+        self.send_json(404, {
+            "error": "Маршрут не знайдено",
+        })
 
     def log_message(self, format_string, *args):
-        logging.info("HTTP API: " + format_string, *args)
+        logging.info(
+            "HTTP %s - %s",
+            self.address_string(),
+            format_string % args,
+        )
 
 
 def run_http_server():
-    server = HTTPServer((API_HOST, API_PORT), APIHandler)
+    server = ThreadingHTTPServer(
+        (API_HOST, API_PORT),
+        APIHandler,
+    )
 
     logging.info(
-        "HTTP API запущено: http://%s:%s",
-        API_HOST,
+        "HTTP API запущено на порту %s",
         API_PORT,
     )
 
     server.serve_forever()
 
 
-# =========================
+# =========================================================
 # ЗАПУСК
-# =========================
+# =========================================================
 
 if __name__ == "__main__":
     server_thread = threading.Thread(
@@ -511,6 +629,8 @@ if __name__ == "__main__":
             bot.infinity_polling(
                 timeout=30,
                 long_polling_timeout=30,
+                skip_pending=True,
             )
         except Exception:
-            logging.exception("Помилка Telegram-бота")
+            logging.exception("Помилка Telegram polling")
+            time.sleep(5)
