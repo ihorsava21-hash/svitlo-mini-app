@@ -4,6 +4,7 @@ import requests
 import datetime
 import random
 import os
+import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -12,23 +13,6 @@ GROUP = '35.1'
 YASNO_API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages"
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# --- Міні-сервер для Render (0.0.0.0) ---
-class DummyHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b"Bot is active!")
-
-def run_dummy_server():
-    port = int(os.environ.get("PORT", 10000))
-    server_address = ('0.0.0.0', port)
-    httpd = HTTPServer(server_address, DummyHandler)
-    httpd.serve_forever()
-
-threading.Thread(target=run_dummy_server, daemon=True).start()
-# ----------------------------------------
 
 def hhmm(m):
     h = int(m // 60)
@@ -56,7 +40,6 @@ def get_yasno_data():
         return None, f"Помилка зв'язку з сервером: {e}"
 
 def build_intervals(slots):
-    # Фільтруємо на відключення ("definite") та періоди зі світлом ("notplanned")
     valid_slots = [
         s for s in slots 
         if str(s.get("type", "")).lower() in ["definite", "notplanned"]
@@ -75,6 +58,32 @@ def build_intervals(slots):
                 "type": stype
             })
     return merged
+
+# --- Сервер для Render із CORS-роутом для Mini App ---
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/schedule':
+            slots, err = get_yasno_data()
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            response = {"slots": slots, "error": err}
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+        else:
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b"Bot is active!")
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server_address = ('0.0.0.0', port)
+    httpd = HTTPServer(server_address, DummyHandler)
+    httpd.serve_forever()
+
+threading.Thread(target=run_dummy_server, daemon=True).start()
+# -----------------------------------------------------
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -108,7 +117,6 @@ def handle_menu(message):
         now_m = datetime.datetime.now().hour * 60 + datetime.datetime.now().minute
         intervals = build_intervals(slots)
         
-        # Визначаємо поточний стан
         current_outage = next((s for s in slots if str(s.get("type", "")).lower() == "definite" and s["start"] <= now_m < s["end"]), None)
         
         if current_outage:
@@ -120,7 +128,6 @@ def handle_menu(message):
             else:
                 status_header = "🟢 **Світло є** (відключень до кінця доби не очікується)"
 
-        # Найближчі 3 інтервали
         upcoming = [i for i in intervals if i["end"] > now_m][:3]
         
         lines = [f"📅 **Графік YASNO — Черга {GROUP}**", f"Поточний стан: {status_header}\n", "Найближчі інтервали:"]
