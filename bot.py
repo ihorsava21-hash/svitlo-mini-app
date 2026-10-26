@@ -5,14 +5,19 @@ import datetime
 import random
 import os
 import json
+import time
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BOT_TOKEN = '8680430959:AAE8T_Q4ffvdl6O7OXZ6cv9UinNbdeuz8g8'
+ADMIN_CHAT_ID = '367762402'  # Дізнайся свій ID через @userinfobot
 GROUP = '35.1'
 YASNO_API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages"
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# Глобальний кеш розкладу для відстеження змін
+last_known_schedule = None
 
 def hhmm(m):
     h = int(m // 60)
@@ -37,18 +42,18 @@ def get_yasno_data():
             
         return slots, None
     except Exception as e:
-        return None, f"Помилка зв'язку з сервером: {e}"
+        return None, f"Помилка: {e}"
 
 def build_intervals(slots):
-    valid_slots = [
+    valid = [
         s for s in slots 
-        if str(s.get("type", "")).lower() in ["definite", "notplanned"]
+        if str(s.get("type", "")).lower().replace("_", "") in ["definite", "definiteoutage", "notplanned"]
     ]
-    valid_slots.sort(key=lambda x: x["start"])
+    valid.sort(key=lambda x: x["start"])
 
     merged = []
-    for s in valid_slots:
-        stype = str(s.get("type", "")).lower()
+    for s in valid:
+        stype = "definite" if "definite" in str(s.get("type", "")).lower() else "notplanned"
         if merged and merged[-1]["end"] == s["start"] and merged[-1]["type"] == stype:
             merged[-1]["end"] = s["end"]
         else:
@@ -59,7 +64,47 @@ def build_intervals(slots):
             })
     return merged
 
-# --- Сервер для Render із CORS-роутом для Mini App ---
+def format_schedule_message(slots):
+    intervals = build_intervals(slots)
+    outages = [i for i in intervals if i["type"] == "definite"]
+    
+    if not outages:
+        return "🎉 Згідно з новим графіком, відключень не планується!"
+    
+    lines = ["🔔 **УВАГА: Графік відключень змінився!**\n", f"Актуальні періоди без світла (Черга {GROUP}):"]
+    for item in outages:
+        lines.append(f"🔴 {hhmm(item['start'])} – {hhmm(item['end'])}")
+    return "\n".join(lines)
+
+# --- Фоновий моніторинг змін графіка ---
+def monitor_schedule_changes():
+    global last_known_schedule
+    # Перший запуск для початкового стану
+    slots, err = get_yasno_data()
+    if slots:
+        last_known_schedule = json.dumps(slots, sort_keys=True)
+    
+    while True:
+        try:
+            time.sleep(300)  # Перевірка кожні 5 хвилин
+            current_slots, err = get_yasno_data()
+            
+            if current_slots:
+                current_dump = json.dumps(current_slots, sort_keys=True)
+                if last_known_schedule is not None and current_dump != last_known_schedule:
+                    last_known_schedule = current_dump
+                    if ADMIN_CHAT_ID and ADMIN_CHAT_ID != 'ВАШ_TELEGRAM_ID':
+                        msg = format_schedule_message(current_slots)
+                        bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
+                else:
+                    last_known_schedule = current_dump
+        except Exception as e:
+            print(f"Помилка моніторингу: {e}")
+
+threading.Thread(target=monitor_schedule_changes, daemon=True).start()
+# ----------------------------------------
+
+# --- Сервер для Render та Mini App ---
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/schedule':
@@ -83,7 +128,7 @@ def run_dummy_server():
     httpd.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
-# -----------------------------------------------------
+# -------------------------------------
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -91,8 +136,9 @@ def send_welcome(message):
     markup.add(types.KeyboardButton('🔋 Статус EcoFlow'), types.KeyboardButton('📅 Графік черги'))
     bot.send_message(
         message.chat.id, 
-        f"Бот моніторингу світла (Черга {GROUP}). Обери пункт:", 
-        reply_markup=markup
+        f"Бот моніторингу світла (Черга {GROUP}). Обери пункт:\n(Твій ID: `{message.chat.id}`)", 
+        reply_markup=markup,
+        parse_mode="Markdown"
     )
 
 @bot.message_handler(content_types=['text'])
@@ -117,12 +163,12 @@ def handle_menu(message):
         now_m = datetime.datetime.now().hour * 60 + datetime.datetime.now().minute
         intervals = build_intervals(slots)
         
-        current_outage = next((s for s in slots if str(s.get("type", "")).lower() == "definite" and s["start"] <= now_m < s["end"]), None)
+        current_outage = next((s for s in slots if "definite" in str(s.get("type", "")).lower() and s["start"] <= now_m < s["end"]), None)
         
         if current_outage:
             status_header = f"🔴 **Світла немає** (до {hhmm(current_outage['end'])})"
         else:
-            next_outage = next((s for s in slots if str(s.get("type", "")).lower() == "definite" and s["start"] > now_m), None)
+            next_outage = next((s for s in slots if "definite" in str(s.get("type", "")).lower() and s["start"] > now_m), None)
             if next_outage:
                 status_header = f"🟢 **Світло є** (відключення о {hhmm(next_outage['start'])})"
             else:
