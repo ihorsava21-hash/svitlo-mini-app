@@ -16,6 +16,7 @@
             --red: #E68C88;
             --yellow: #E4C77E;
             --empty: #41454E;
+            --active-tab: #2F333D;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -29,7 +30,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
         .header h1 {
             margin: 0;
@@ -37,9 +38,41 @@
             letter-spacing: 0.5px;
             font-weight: 700;
         }
-        .header span {
+        .group-select {
+            background-color: var(--panel-bg);
+            color: var(--text-color);
+            border: 1px solid var(--line-color);
+            border-radius: 8px;
+            padding: 4px 8px;
             font-size: 12px;
+            font-weight: 600;
+            outline: none;
+        }
+        /* Вкладки Сьогодні / Завтра */
+        .tabs {
+            display: flex;
+            background-color: var(--panel-bg);
+            border-radius: 10px;
+            padding: 4px;
+            gap: 4px;
+            margin-bottom: 12px;
+            border: 1px solid var(--line-color);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
             color: var(--muted-color);
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            background-color: var(--active-tab);
+            color: var(--text-color);
         }
         .card {
             background-color: var(--panel-bg);
@@ -112,7 +145,7 @@
             color: var(--text-color);
             font-weight: 600;
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 6px;
             border: 1px solid var(--line-color);
         }
     </style>
@@ -121,9 +154,32 @@
     <div class="header">
         <div>
             <h1>POWER / KYIV</h1>
-            <span style="font-size: 11px;">ЧЕРГА 35.1</span>
+            <span id="update-label" style="font-size: 11px; color: var(--muted-color);">YASNO</span>
         </div>
-        <span id="update-label">Оновлення...</span>
+        <div>
+            <label style="font-size: 11px; color: var(--muted-color); margin-right: 4px;">ЧЕРГА</label>
+            <select id="group-select" class="group-select" onchange="onGroupChange()">
+                <option value="35.1">35.1</option>
+                <option value="1.1">1.1</option>
+                <option value="1.2">1.2</option>
+                <option value="2.1">2.1</option>
+                <option value="2.2">2.2</option>
+                <option value="3.1">3.1</option>
+                <option value="3.2">3.2</option>
+                <option value="4.1">4.1</option>
+                <option value="4.2">4.2</option>
+                <option value="5.1">5.1</option>
+                <option value="5.2">5.2</option>
+                <option value="6.1">6.1</option>
+                <option value="6.2">6.2</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Перемикач днів -->
+    <div class="tabs">
+        <button id="tab-today" class="tab-btn active" onclick="switchDay('today')">Сьогодні</button>
+        <button id="tab-tomorrow" class="tab-btn" onclick="switchDay('tomorrow')">Завтра</button>
     </div>
 
     <div class="card">
@@ -140,7 +196,7 @@
     </div>
 
     <div class="card">
-        <div style="font-size: 12px; font-weight: 600; color: var(--muted-color); margin-bottom: 8px;">НАЙБЛИЖЧІ ПЕРІОДИ</div>
+        <div style="font-size: 12px; font-weight: 600; color: var(--muted-color); margin-bottom: 8px;">ПЕРІОДИ ВІДКЛЮЧЕНЬ</div>
         <div id="intervals-container">Завантаження...</div>
     </div>
 
@@ -150,7 +206,22 @@
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
 
-        const API = "https://svitlo-bot-ysac.onrender.com/schedule";
+        let currentDay = "today";
+        let currentGroup = localStorage.getItem("selected_group") || "35.1";
+        document.getElementById('group-select').value = currentGroup;
+
+        function switchDay(day) {
+            currentDay = day;
+            document.getElementById('tab-today').className = `tab-btn ${day === 'today' ? 'active' : ''}`;
+            document.getElementById('tab-tomorrow').className = `tab-btn ${day === 'tomorrow' ? 'active' : ''}`;
+            loadDashboard();
+        }
+
+        function onGroupChange() {
+            currentGroup = document.getElementById('group-select').value;
+            localStorage.setItem("selected_group", currentGroup);
+            loadDashboard();
+        }
 
         function hhmm(m) {
             const h = Math.floor(m / 60);
@@ -168,50 +239,58 @@
         }
 
         function isNotPlanned(slot) {
-            const t = typeOf(slot);
-            return t === "notplanned";
+            return typeOf(slot) === "notplanned";
         }
 
         async function loadDashboard() {
             try {
-                const res = await fetch(API);
+                const api = `https://svitlo-bot-ysac.onrender.com/schedule?group=${currentGroup}&day=${currentDay}`;
+                const res = await fetch(api);
                 const data = await res.json();
-
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                const slots = data.slots;
-                if (!slots || !Array.isArray(slots)) {
-                    throw new Error("Немає даних по слотах");
-                }
-
-                const now = new Date();
-                const nowM = now.getHours() * 60 + now.getMinutes();
-
-                document.getElementById('update-label').innerText = `YASNO · ${now.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
 
                 const dot = document.getElementById('status-dot');
                 const head = document.getElementById('headline-text');
                 const detail = document.getElementById('detail-text');
+                const bar = document.getElementById('timeline-bar');
+                const container = document.getElementById('intervals-container');
 
-                const active = slots.find(s => isOutage(s) && nowM >= s.start && nowM < s.end);
-                const next = slots.find(s => isOutage(s) && s.start > nowM);
+                if (data.error) {
+                    dot.style.backgroundColor = "var(--yellow)";
+                    head.innerText = currentDay === 'tomorrow' ? "Графік на завтра очікується" : "Графік очікується";
+                    detail.innerText = data.error;
+                    bar.innerHTML = '';
+                    container.innerHTML = '<span class="detail">Розклад ще не сформований YASNO</span>';
+                    return;
+                }
 
-                if (active) {
-                    dot.style.backgroundColor = "var(--red)";
-                    head.innerText = "Світла немає";
-                    detail.innerText = `За графіком до ${hhmm(active.end)}`;
+                const slots = data.slots || [];
+                const now = new Date();
+                const nowM = currentDay === 'today' ? (now.getHours() * 60 + now.getMinutes()) : -1;
+
+                document.getElementById('update-label').innerText = `YASNO · ${now.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
+
+                if (currentDay === 'today') {
+                    const active = slots.find(s => isOutage(s) && nowM >= s.start && nowM < s.end);
+                    const next = slots.find(s => isOutage(s) && s.start > nowM);
+
+                    if (active) {
+                        dot.style.backgroundColor = "var(--red)";
+                        head.innerText = "Світла немає";
+                        detail.innerText = `За графіком до ${hhmm(active.end)}`;
+                    } else {
+                        dot.style.backgroundColor = "var(--green)";
+                        head.innerText = "Світло є";
+                        detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
+                    }
                 } else {
                     dot.style.backgroundColor = "var(--green)";
-                    head.innerText = "Світло є";
-                    detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
+                    head.innerText = "Графік на завтра";
+                    detail.innerText = `Черга ${currentGroup}`;
                 }
 
                 // 24-годинна шкала
-                const bar = document.getElementById('timeline-bar');
                 bar.innerHTML = '';
-                const curHour = now.getHours();
+                const curHour = currentDay === 'today' ? now.getHours() : -1;
 
                 for (let h = 0; h < 24; h++) {
                     const seg = document.createElement('div');
@@ -230,7 +309,7 @@
                     bar.appendChild(seg);
                 }
 
-                // Об'єднання суміжних періодів одного типу
+                // Інтервали
                 const sorted = [...slots]
                     .filter(s => isOutage(s) || isNotPlanned(s))
                     .sort((a, b) => a.start - b.start);
@@ -246,12 +325,11 @@
                     }
                 }
 
-                const visible = intervals.filter(i => i.end > nowM).slice(0, 3);
-                const container = document.getElementById('intervals-container');
+                const visible = currentDay === 'today' ? intervals.filter(i => i.end > nowM) : intervals;
                 container.innerHTML = '';
 
                 if (visible.length === 0) {
-                    container.innerHTML = '<span class="detail">Більше немає інтервалів на сьогодні</span>';
+                    container.innerHTML = '<span class="detail">Відключень за графіком немає</span>';
                 } else {
                     visible.forEach(i => {
                         const row = document.createElement('div');
