@@ -296,6 +296,13 @@ def format_schedule_for_telegram(group, day):
     status = payload.get("status", "Статус невідомий")
     date = payload.get("date") or "Дата не вказана"
 
+if date != "Дата не вказана":
+    try:
+        date = datetime.fromisoformat(
+            date.replace("Z", "+00:00")
+        ).strftime("%d.%m.%Y")
+    except ValueError:
+        pass
     day_label = "Сьогодні" if day == "today" else "Завтра"
 
     lines = [
