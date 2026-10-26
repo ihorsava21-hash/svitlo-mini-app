@@ -7,22 +7,35 @@ import os
 import json
 import time
 import threading
+from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BOT_TOKEN = '8680430959:AAE8T_Q4ffvdl6O7OXZ6cv9UinNbdeuz8g8'
-ADMIN_CHAT_ID = '367762402'  # Дізнайся свій ID через @userinfobot
+ADMIN_CHAT_ID = '367762402'
 GROUP = '35.1'
 YASNO_API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages"
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# Глобальний кеш розкладу для відстеження змін
 last_known_schedule = None
+
+def get_kyiv_now():
+    # Точний київський час незалежно від серверної зони
+    return datetime.datetime.now(ZoneInfo("Europe/Kyiv"))
 
 def hhmm(m):
     h = int(m // 60)
     minute = int(m % 60)
     return f"{h:02d}:{minute:02d}"
+
+def type_of(slot):
+    return str(slot.get("type", "")).lower().replace("_", "")
+
+def is_outage(slot):
+    t = type_of(slot)
+    return t in ["definite", "definiteoutage"]
+
+def is_not_planned(slot):
+    return type_of(slot) == "notplanned"
 
 def get_yasno_data():
     try:
@@ -45,28 +58,25 @@ def get_yasno_data():
         return None, f"Помилка: {e}"
 
 def build_intervals(slots):
-    valid = [
-        s for s in slots 
-        if str(s.get("type", "")).lower().replace("_", "") in ["definite", "definiteoutage", "notplanned"]
-    ]
+    valid = [s for s in slots if is_outage(s) or is_not_planned(s)]
     valid.sort(key=lambda x: x["start"])
 
     merged = []
     for s in valid:
-        stype = "definite" if "definite" in str(s.get("type", "")).lower() else "notplanned"
-        if merged and merged[-1]["end"] == s["start"] and merged[-1]["type"] == stype:
+        outage = is_outage(s)
+        if merged and merged[-1]["end"] == s["start"] and merged[-1]["is_outage"] == outage:
             merged[-1]["end"] = s["end"]
         else:
             merged.append({
                 "start": s["start"],
                 "end": s["end"],
-                "type": stype
+                "is_outage": outage
             })
     return merged
 
 def format_schedule_message(slots):
     intervals = build_intervals(slots)
-    outages = [i for i in intervals if i["type"] == "definite"]
+    outages = [i for i in intervals if i["is_outage"]]
     
     if not outages:
         return "🎉 Згідно з новим графіком, відключень не планується!"
@@ -76,35 +86,29 @@ def format_schedule_message(slots):
         lines.append(f"🔴 {hhmm(item['start'])} – {hhmm(item['end'])}")
     return "\n".join(lines)
 
-# --- Фоновий моніторинг змін графіка ---
 def monitor_schedule_changes():
     global last_known_schedule
-    # Перший запуск для початкового стану
     slots, err = get_yasno_data()
     if slots:
         last_known_schedule = json.dumps(slots, sort_keys=True)
     
     while True:
         try:
-            time.sleep(300)  # Перевірка кожні 5 хвилин
+            time.sleep(300)
             current_slots, err = get_yasno_data()
-            
             if current_slots:
                 current_dump = json.dumps(current_slots, sort_keys=True)
                 if last_known_schedule is not None and current_dump != last_known_schedule:
                     last_known_schedule = current_dump
-                    if ADMIN_CHAT_ID and ADMIN_CHAT_ID != 'ВАШ_TELEGRAM_ID':
-                        msg = format_schedule_message(current_slots)
-                        bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
+                    msg = format_schedule_message(current_slots)
+                    bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
                 else:
                     last_known_schedule = current_dump
         except Exception as e:
             print(f"Помилка моніторингу: {e}")
 
 threading.Thread(target=monitor_schedule_changes, daemon=True).start()
-# ----------------------------------------
 
-# --- Сервер для Render та Mini App ---
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/schedule':
@@ -128,7 +132,6 @@ def run_dummy_server():
     httpd.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
-# -------------------------------------
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -136,9 +139,8 @@ def send_welcome(message):
     markup.add(types.KeyboardButton('🔋 Статус EcoFlow'), types.KeyboardButton('📅 Графік черги'))
     bot.send_message(
         message.chat.id, 
-        f"Бот моніторингу світла (Черга {GROUP}). Обери пункт:\n(Твій ID: `{message.chat.id}`)", 
-        reply_markup=markup,
-        parse_mode="Markdown"
+        f"Бот моніторингу світла (Черга {GROUP}). Обери пункт:", 
+        reply_markup=markup
     )
 
 @bot.message_handler(content_types=['text'])
@@ -160,28 +162,36 @@ def handle_menu(message):
             bot.send_message(message.chat.id, f"⚠️ {err}")
             return
 
-        now_m = datetime.datetime.now().hour * 60 + datetime.datetime.now().minute
+        now = get_kyiv_now()
+        now_m = now.hour * 60 + now.minute
         intervals = build_intervals(slots)
         
-        current_outage = next((s for s in slots if "definite" in str(s.get("type", "")).lower() and s["start"] <= now_m < s["end"]), None)
+        current_outage = next((s for s in slots if is_outage(s) and s["start"] <= now_m < s["end"]), None)
         
         if current_outage:
             status_header = f"🔴 **Світла немає** (до {hhmm(current_outage['end'])})"
         else:
-            next_outage = next((s for s in slots if "definite" in str(s.get("type", "")).lower() and s["start"] > now_m), None)
+            next_outage = next((s for s in slots if is_outage(s) and s["start"] > now_m), None)
             if next_outage:
                 status_header = f"🟢 **Світло є** (відключення о {hhmm(next_outage['start'])})"
             else:
-                status_header = "🟢 **Світло є** (відключень до кінця доби не очікується)"
+                status_header = "🟢 **Світло є** (відключень далі немає)"
 
         upcoming = [i for i in intervals if i["end"] > now_m][:3]
         
-        lines = [f"📅 **Графік YASNO — Черга {GROUP}**", f"Поточний стан: {status_header}\n", "Найближчі інтервали:"]
-        for item in upcoming:
-            is_off = item["type"] == "definite"
-            icon = "🔴" if is_off else "🟢"
-            label = "Світла немає" if is_off else "Світло є за графіком"
-            lines.append(f"{icon} {hhmm(item['start'])}–{hhmm(item['end'])} — {label}")
+        lines = [
+            f"📅 **Графік YASNO — Черга {GROUP}**",
+            f"Поточний стан: {status_header}\n",
+            "Найближчі інтервали:"
+        ]
+        
+        if not upcoming:
+            lines.append("Більше немає запланованих інтервалів на сьогодні")
+        else:
+            for item in upcoming:
+                icon = "🔴" if item["is_outage"] else "🟢"
+                label = "Світла немає" if item["is_outage"] else "Світло є за графіком"
+                lines.append(f"{icon} {hhmm(item['start'])}–{hhmm(item['end'])} — {label}")
             
         bot.send_message(message.chat.id, "\n".join(lines), parse_mode="Markdown")
 
