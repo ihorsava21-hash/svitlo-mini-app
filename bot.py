@@ -10,15 +10,12 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
-# Читання токена або дефолтний
 BOT_TOKEN = os.environ.get('BOT_TOKEN', '8680430959:AAE8T_Q4ffvdl6O7OXZ6cv9UinNbdeuz8g8')
 ADMIN_CHAT_ID = os.environ.get('ADMIN_CHAT_ID', '367762402')
 DEFAULT_GROUP = '35.1'
 YASNO_API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages"
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# Збереження вибору черги користувачів
 user_groups = {}
 
 def get_user_group(chat_id):
@@ -28,9 +25,7 @@ def set_user_group(chat_id, group):
     user_groups[str(chat_id)] = str(group)
 
 def get_kyiv_now():
-    # Надійний розрахунок часу Києва (UTC+2 взимку, UTC+3 влітку) без сторонніх модулів
     utc_now = datetime.datetime.now(datetime.timezone.utc)
-    # Перевірка літнього/зимового часу (з останньої неділі березня до останньої неділі жовтня)
     is_dst = 3 <= utc_now.month <= 10
     offset = 3 if is_dst else 2
     return utc_now + datetime.timedelta(hours=offset)
@@ -57,7 +52,7 @@ def fetch_full_yasno():
         if res.status_code == 200:
             return res.json()
     except Exception as e:
-        print(f"Помилка YASNO API: {e}")
+        print(f"Помилка YASNO: {e}")
     return None
 
 def sort_key_group(g):
@@ -109,11 +104,7 @@ def build_intervals(slots):
         if merged and merged[-1]["end"] == s["start"] and merged[-1]["is_outage"] == outage:
             merged[-1]["end"] = s["end"]
         else:
-            merged.append({
-                "start": s["start"],
-                "end": s["end"],
-                "is_outage": outage
-            })
+            merged.append({"start": s["start"], "end": s["end"], "is_outage": outage})
     return merged
 
 def format_schedule_text(slots, group, day="today"):
@@ -146,42 +137,24 @@ def format_schedule_text(slots, group, day="today"):
 
     return "\n".join(lines)
 
-# Фоновий моніторинг
-last_known_schedule = None
+class RequestHandler(BaseHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        super().end_headers()
 
-def monitor_schedule_changes():
-    global last_known_schedule
-    time.sleep(10)
-    slots, _ = get_yasno_data(DEFAULT_GROUP, "today")
-    if slots:
-        last_known_schedule = json.dumps(slots, sort_keys=True)
-    
-    while True:
-        try:
-            time.sleep(300)
-            current_slots, _ = get_yasno_data(DEFAULT_GROUP, "today")
-            if current_slots:
-                current_dump = json.dumps(current_slots, sort_keys=True)
-                if last_known_schedule is not None and current_dump != last_known_schedule:
-                    last_known_schedule = current_dump
-                    msg = "🔔 **Графік оновлено!**\n\n" + format_schedule_text(current_slots, DEFAULT_GROUP, "today")
-                    bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
-                else:
-                    last_known_schedule = current_dump
-        except Exception as e:
-            print(f"Моніторинг: {e}")
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
 
-threading.Thread(target=monitor_schedule_changes, daemon=True).start()
-
-# Простий HTTP-сервер
-class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/groups':
             groups = get_available_groups()
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({"groups": groups}).encode('utf-8'))
 
@@ -193,7 +166,6 @@ class SimpleHandler(BaseHTTPRequestHandler):
             slots, err = get_yasno_data(group, day)
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             response = {"group": group, "day": day, "slots": slots, "error": err}
             self.wfile.write(json.dumps(response).encode('utf-8'))
@@ -204,11 +176,11 @@ class SimpleHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"OK")
 
     def log_message(self, format, *args):
-        pass # Вимикає спам у логи при кожному пінгу
+        pass
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    server = HTTPServer(('0.0.0.0', port), RequestHandler)
     server.serve_forever()
 
 threading.Thread(target=run_server, daemon=True).start()
