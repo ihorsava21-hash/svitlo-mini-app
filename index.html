@@ -4,245 +4,158 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Світло Дім</title>
-    <!-- Підключення скрипта Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Базові стилі, адаптовані під Telegram */
         :root {
-            --bg-color: var(--tg-theme-bg-color, #f3f2f8);
-            --text-color: var(--tg-theme-text-color, #000000);
-            --card-bg: var(--tg-theme-secondary-bg-color, #ffffff);
+            --bg-color: var(--tg-theme-bg-color, #1c1c1e);
+            --text-color: var(--tg-theme-text-color, #ffffff);
+            --card-bg: var(--tg-theme-secondary-bg-color, #2c2c2e);
             --hint-color: var(--tg-theme-hint-color, #8e8e93);
             --accent-color: var(--tg-theme-button-color, #007aff);
-            --green: #34c759;
-            --red: #ff3b30;
+            --green: #32d74b;
+            --red: #ff453a;
             --orange: #ff9f0a;
         }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 16px;
-            box-sizing: border-box;
-            transition: background-color 0.3s;
+            font-family: -apple-system, sans-serif;
+            background-color: var(--bg-color); color: var(--text-color);
+            margin: 0; padding: 16px; box-sizing: border-box;
         }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 0 4px;
-        }
-
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-        }
-
-        .header span {
-            font-size: 13px;
-            color: var(--hint-color);
-        }
-
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-
-        /* Блок EcoFlow */
-        .ecoflow-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .status-on { background-color: rgba(52, 199, 89, 0.15); color: var(--green); }
-        .status-off { background-color: rgba(255, 59, 48, 0.15); color: var(--red); }
-
-        .battery-container {
-            margin-top: 10px;
-        }
-
-        .battery-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        .battery-bar {
-            height: 12px;
-            background-color: rgba(142, 142, 147, 0.2);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .battery-fill {
-            height: 100%;
-            background-color: var(--green);
-            width: 85%; /* Симуляція заряду */
-            border-radius: 10px;
-            transition: width 0.5s ease-in-out;
-        }
-
-        /* Блок Графіка */
-        .schedule-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: var(--hint-color);
-        }
-
-        .period {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(142, 142, 147, 0.2);
-        }
-        
-        .period:last-child {
-            border-bottom: none;
-            padding-bottom: 0;
-        }
-
-        .period-time {
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .period-status {
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        .text-green { color: var(--green); }
-        .text-red { color: var(--red); }
-        .text-orange { color: var(--orange); }
-
-        /* Кнопка симуляції */
-        .btn-test {
-            display: block;
-            width: 100%;
-            padding: 14px;
-            background-color: var(--accent-color);
-            color: white;
-            text-align: center;
-            border-radius: 12px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 16px;
-            margin-top: 24px;
-            border: none;
-            cursor: pointer;
-        }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .header span { font-size: 13px; color: var(--hint-color); }
+        .card { background-color: var(--card-bg); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+        .ecoflow-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .status-badge { display: inline-flex; gap: 6px; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px; }
+        .status-on { background-color: rgba(50, 215, 75, 0.15); color: var(--green); }
+        .status-off { background-color: rgba(255, 69, 58, 0.15); color: var(--red); }
+        .battery-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 600; }
+        .battery-bar { height: 12px; background-color: rgba(142, 142, 147, 0.2); border-radius: 10px; }
+        .battery-fill { height: 100%; border-radius: 10px; transition: width 0.5s; }
+        .schedule-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--hint-color); }
+        .period { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(142, 142, 147, 0.2); }
+        .period:last-child { border-bottom: none; padding-bottom: 0; }
+        .period-time { font-size: 18px; font-weight: 600; }
+        .period-status { font-size: 14px; font-weight: 500; }
+        .text-green { color: var(--green); } .text-red { color: var(--red); } .text-orange { color: var(--orange); }
+        .btn-test { display: block; width: 100%; padding: 14px; background-color: var(--accent-color); color: white; border-radius: 12px; border: none; font-weight: 600; margin-top: 24px; cursor: pointer; }
     </style>
 </head>
 <body>
-
     <div class="header">
         <h1>🏠 Дім</h1>
-        <span id="time-updated">Оновлено: 17:00</span>
+        <span id="time-updated">Оновлення...</span>
     </div>
 
-    <!-- Картка EcoFlow -->
     <div class="card">
         <div class="ecoflow-header">
             <div>
-                <h2 style="margin: 0; font-size: 18px;">EcoFlow River 3 Plus</h2>
+                <h2 style="margin: 0; font-size: 18px;">EcoFlow River 3</h2>
                 <span style="font-size: 12px; color: var(--hint-color);">Черга 35.1</span>
             </div>
             <div id="grid-status" class="status-badge status-on">
                 <span id="grid-icon">🟢</span> <span id="grid-text">Мережа</span>
             </div>
         </div>
-        
-        <div class="battery-container">
+        <div>
             <div class="battery-header">
                 <span style="color: var(--hint-color); font-size: 14px;">Заряд батареї</span>
-                <span id="battery-pct">85%</span>
+                <span id="battery-pct">--%</span>
             </div>
-            <div class="battery-bar">
-                <div id="battery-fill" class="battery-fill"></div>
-            </div>
-            <p id="time-left" style="font-size: 12px; color: var(--hint-color); margin-top: 8px; margin-bottom: 0;">Час роботи: ~10 год</p>
+            <div class="battery-bar"><div id="battery-fill" class="battery-fill" style="width: 0%; background-color: var(--green);"></div></div>
         </div>
     </div>
 
-    <!-- Картка Графіка -->
     <div class="card">
         <div class="schedule-title">Графік на сьогодні</div>
-        
-        <div class="period">
-            <div class="period-time">16:00 - 19:00</div>
-            <div class="period-status text-orange">Можливо</div>
-        </div>
-        
-        <div class="period">
-            <div class="period-time">19:00 - 22:00</div>
-            <div class="period-status text-red">Немає світла</div>
-        </div>
-        
-        <div class="period">
-            <div class="period-time">22:00 - 07:00</div>
-            <div class="period-status text-green">Світло є</div>
-        </div>
+        <div id="schedule-container">Завантаження розкладу...</div>
     </div>
 
-    <button class="btn-test" onclick="togglePower()">🔄 Симулювати відключення</button>
+    <button class="btn-test" onclick="updateDashboard(true)">🔄 Оновити дані</button>
 
     <script>
-        // Ініціалізація Telegram Web App (дозволяє додатку розтягнутися на весь екран)
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
+        
+        const group = '35.1';
+        let isSimulatedPowerOff = false; // Для тестування
 
-        // Оновлення часу
-        document.getElementById('time-updated').innerText = 'Оновлено: ' + new Date().toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
-
-        let isPowerOn = true;
-
-        // Функція для симуляції того, як дашборд реагує на зникнення світла
-        function togglePower() {
-            isPowerOn = !isPowerOn;
-            
-            const badge = document.getElementById('grid-status');
-            const icon = document.getElementById('grid-icon');
-            const text = document.getElementById('grid-text');
-            const batteryFill = document.getElementById('battery-fill');
-            const timeLeft = document.getElementById('time-left');
-
-            if (isPowerOn) {
-                badge.className = 'status-badge status-on';
-                icon.innerText = '🟢';
-                text.innerText = 'Мережа';
-                batteryFill.style.backgroundColor = 'var(--green)';
-                timeLeft.innerText = 'Заряджається...';
-            } else {
-                badge.className = 'status-badge status-off';
-                icon.innerText = '🔴';
-                text.innerText = 'Батарея';
-                batteryFill.style.backgroundColor = 'var(--orange)';
-                timeLeft.innerText = 'Час роботи: ~8 год 30 хв (150 Вт)';
-            }
+        async function fetchSchedule() {
+            try {
+                let res = await fetch("https://yasno.energal.info/api/v1/schedules");
+                let data = await res.json();
+                if (data && data.kiev && data.kiev[group]) {
+                    let outages = [];
+                    for (let p of data.kiev[group]) {
+                        if (p.type === "DEFINITE_OUTAGE" || p.type === "definite") {
+                            for (let h = Math.floor(p.start); h < Math.ceil(p.end); h++) {
+                                if (!outages.includes(h)) outages.push(h);
+                            }
+                        }
+                    }
+                    return outages;
+                }
+            } catch (e) { console.error(e); }
+            return []; // Якщо помилка, повертаємо порожній графік
         }
+
+        function getPeriods(outages, currentHour) {
+            let isCurrentlyOff = outages.includes(currentHour);
+            let p1End = currentHour;
+            while (p1End < 24 && outages.includes(p1End) === isCurrentlyOff) p1End++;
+
+            let isNextOff = !isCurrentlyOff;
+            let p2End = p1End;
+            while (p2End < 24 && outages.includes(p2End) === isNextOff) p2End++;
+
+            return {
+                current: { start: currentHour, end: p1End, hasPower: !isCurrentlyOff },
+                next: { start: p1End, end: p2End, hasPower: !isNextOff }
+            };
+        }
+
+        function formatTime(h) {
+            if (h >= 24) return "00:00";
+            return h < 10 ? `0${h}:00` : `${h}:00`;
+        }
+
+        async function updateDashboard(toggleSim = false) {
+            document.getElementById('time-updated').innerText = 'Оновлено: ' + new Date().toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+            
+            if (toggleSim) isSimulatedPowerOff = !isSimulatedPowerOff;
+
+            // 1. Оновлення EcoFlow (Симуляція)
+            let hasPower = toggleSim ? !isSimulatedPowerOff : (Math.random() > 0.5);
+            let soc = Math.floor(Math.random() * 41) + 60; // 60-100%
+
+            document.getElementById('grid-status').className = hasPower ? 'status-badge status-on' : 'status-badge status-off';
+            document.getElementById('grid-icon').innerText = hasPower ? '🟢' : '🔴';
+            document.getElementById('grid-text').innerText = hasPower ? 'Мережа' : 'Батарея';
+            
+            document.getElementById('battery-pct').innerText = `${soc}%`;
+            document.getElementById('battery-fill').style.width = `${soc}%`;
+            document.getElementById('battery-fill').style.backgroundColor = hasPower ? 'var(--green)' : 'var(--orange)';
+
+            // 2. Оновлення Графіка
+            let outages = await fetchSchedule();
+            let h = new Date().getHours();
+            let periods = getPeriods(outages, h);
+            
+            let html = '';
+            // Поточний
+            html += `<div class="period"><div class="period-time">${formatTime(periods.current.start)} - ${formatTime(periods.current.end)}</div><div class="period-status ${periods.current.hasPower ? 'text-green' : 'text-red'}">${periods.current.hasPower ? 'Світло є' : 'Немає світла'}</div></div>`;
+            // Наступний
+            if (periods.next.start < 24) {
+                html += `<div class="period"><div class="period-time">${formatTime(periods.next.start)} - ${formatTime(periods.next.end)}</div><div class="period-status ${periods.next.hasPower ? 'text-green' : 'text-orange'}">${periods.next.hasPower ? 'Світло буде' : 'Можливе відключення'}</div></div>`;
+            } else {
+                html += `<div class="period"><div class="period-time">До кінця доби</div><div class="period-status" style="color: var(--hint-color)">Змін не очікується</div></div>`;
+            }
+            
+            document.getElementById('schedule-container').innerHTML = html;
+        }
+
+        // Запуск при відкритті
+        updateDashboard();
     </script>
 </body>
 </html>
