@@ -18,7 +18,6 @@ YASNO_API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Збереження обраної черги для користувачів (chat_id -> group)
 USER_GROUPS_FILE = "user_groups.json"
 user_groups = {}
 if os.path.exists(USER_GROUPS_FILE):
@@ -57,30 +56,48 @@ def is_outage(slot):
 def is_not_planned(slot):
     return type_of(slot) == "notplanned"
 
-def get_yasno_data(group=DEFAULT_GROUP, day="today"):
-    """Отримує дані з YASNO для зазначеної черги та дня (today або tomorrow)"""
+def fetch_full_yasno():
     try:
         headers = {"Accept": "application/json"}
-        res = requests.get(YASNO_API, headers=headers, timeout=15).json()
-        group_data = res.get(str(group))
-        
-        if not group_data:
-            return None, f"Чергу {group} не знайдено в базі YASNO"
-
-        day_data = group_data.get(day)
-        if not day_data:
-            return None, f"Дані на {'завтра' if day == 'tomorrow' else 'сьогодні'} відсутні"
-
-        status = day_data.get("status")
-        slots = day_data.get("slots", [])
-        
-        if status != "ScheduleApplies":
-            day_str = "на завтра" if day == "tomorrow" else "на сьогодні"
-            return None, f"Графік {day_str} ще очікується (YASNO формує розклад)"
-            
-        return slots, None
+        return requests.get(YASNO_API, headers=headers, timeout=15).json()
     except Exception as e:
-        return None, f"Помилка отримання даних: {e}"
+        print(f"Помилка YASNO API: {e}")
+        return None
+
+def get_available_groups():
+    data = fetch_full_yasno()
+    if not data or not isinstance(data, dict):
+        return [DEFAULT_GROUP]
+    # Фільтруємо технічні поля, залишаємо ключі черг
+    groups = [k for k in data.keys() if isinstance(data[k], dict) and ("today" in data[k] or "tomorrow" in data[k])]
+    return sorted(groups) if groups else [DEFAULT_GROUP]
+
+def get_yasno_data(group=DEFAULT_GROUP, day="today"):
+    res = fetch_full_yasno()
+    if not res:
+        return None, "Не вдалося отримати дані від сервера YASNO"
+
+    # Спроба прямого збігу або альтернативного формату (group_X)
+    target = str(group)
+    group_data = res.get(target) or res.get(f"group_{target}") or res.get(target.replace("group_", ""))
+    
+    if not group_data:
+        available = ", ".join(list(res.keys())[:8])
+        return None, f"Чергу «{group}» не знайдено. Доступні черги: {available}..."
+
+    day_data = group_data.get(day)
+    if not day_data:
+        day_str = "на завтра" if day == "tomorrow" else "на сьогодні"
+        return None, f"Дані {day_str} для черги {group} наразі відсутні"
+
+    status = day_data.get("status")
+    slots = day_data.get("slots", [])
+    
+    if status != "ScheduleApplies":
+        day_str = "на завтра" if day == "tomorrow" else "на сьогодні"
+        return None, f"Графік {day_str} ще очікується (YASNO формує розклад)"
+        
+    return slots, None
 
 def build_intervals(slots):
     valid = [s for s in slots if is_outage(s) or is_not_planned(s)]
@@ -129,7 +146,7 @@ def format_schedule_text(slots, group, day="today"):
 
     return "\n".join(lines)
 
-# --- Фоновий моніторинг змін графіка ---
+# Фоновий моніторинг
 last_known_schedule = None
 
 def monitor_schedule_changes():
@@ -146,7 +163,7 @@ def monitor_schedule_changes():
                 current_dump = json.dumps(current_slots, sort_keys=True)
                 if last_known_schedule is not None and current_dump != last_known_schedule:
                     last_known_schedule = current_dump
-                    msg = "🔔 **УВАГА: Оновлено графік відключень!**\n\n" + format_schedule_text(current_slots, DEFAULT_GROUP, "today")
+                    msg = "🔔 **УВАГА: Графік оновлено!**\n\n" + format_schedule_text(current_slots, DEFAULT_GROUP, "today")
                     bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
                 else:
                     last_known_schedule = current_dump
@@ -155,11 +172,19 @@ def monitor_schedule_changes():
 
 threading.Thread(target=monitor_schedule_changes, daemon=True).start()
 
-# --- Веб-сервер з підтримкою вибору черги та дня ---
+# Сервер для Mini App
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path == '/schedule':
+        if parsed.path == '/groups':
+            groups = get_available_groups()
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"groups": groups}).encode('utf-8'))
+
+        elif parsed.path == '/schedule':
             params = parse_qs(parsed.query)
             group = params.get('group', [DEFAULT_GROUP])[0]
             day = params.get('day', ['today'])[0]
@@ -223,39 +248,34 @@ def handle_menu(message):
         if err:
             bot.send_message(chat_id, f"⚠️ {err}")
             return
-        text = format_schedule_text(slots, current_group, "today")
-        bot.send_message(chat_id, text, parse_mode="Markdown")
+        bot.send_message(chat_id, format_schedule_text(slots, current_group, "today"), parse_mode="Markdown")
 
     elif message.text == '🔮 Завтра':
         slots, err = get_yasno_data(current_group, "tomorrow")
         if err:
             bot.send_message(chat_id, f"⚠️ {err}")
             return
-        text = format_schedule_text(slots, current_group, "tomorrow")
-        bot.send_message(chat_id, text, parse_mode="Markdown")
+        bot.send_message(chat_id, format_schedule_text(slots, current_group, "tomorrow"), parse_mode="Markdown")
 
     elif message.text.startswith('⚙️ Черга'):
+        groups = get_available_groups()
         inline_kb = types.InlineKeyboardMarkup(row_width=3)
-        # Популярні підчерги Києва
-        buttons = [
-            types.InlineKeyboardButton(g, callback_data=f"set_group:{g}")
-            for g in ["1.1", "1.2", "2.1", "2.2", "3.1", "3.2", "4.1", "4.2", "5.1", "5.2", "6.1", "6.2", "35.1"]
-        ]
+        buttons = [types.InlineKeyboardButton(g, callback_data=f"set_group:{g}") for g in groups[:15]]
         inline_kb.add(*buttons)
         bot.send_message(
             chat_id, 
-            f"Поточна черга: **{current_group}**.\nОберіть нову зі списку або надішліть номер текстовим повідомленням (наприклад `35.1` або `4.2`):",
+            f"Поточна черга: **{current_group}**.\nОберіть чергу зі списку (отримано з бази YASNO) або надішліть номер текстом:",
             reply_markup=inline_kb,
             parse_mode="Markdown"
         )
 
-    elif any(char.isdigit() for char in message.text) and len(message.text) <= 5:
-        # Якщо користувач написав номер черги руками
+    else:
+        # Якщо введено текст як чергу
         new_grp = message.text.strip()
         save_user_group(chat_id, new_grp)
         bot.send_message(
             chat_id, 
-            f"✅ Чергу успішно змінено на **{new_grp}**!",
+            f"✅ Чергу змінено на **{new_grp}**!",
             reply_markup=main_keyboard(chat_id),
             parse_mode="Markdown"
         )
@@ -273,7 +293,7 @@ def callback_set_group(call):
     )
     bot.send_message(
         call.message.chat.id, 
-        "Меню оновлено:", 
+        "Оновлене меню:", 
         reply_markup=main_keyboard(call.message.chat.id)
     )
 
