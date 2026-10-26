@@ -286,6 +286,7 @@ def format_minutes(minutes):
     return f"{hours:02d}:{mins:02d}"
 
 
+
 def format_schedule_for_telegram(group, day):
     payload, status_code = get_schedule_payload(group, day)
 
@@ -293,25 +294,28 @@ def format_schedule_for_telegram(group, day):
         return payload.get("error", "Не вдалося отримати графік.")
 
     slots = payload["slots"]
-    status_map = {
-    "ScheduleApplies": "Графік відключень діє",
-    "WaitingForSchedule": "Графік очікується",
-    "NoShutdowns": "Планових відключень немає",
-    "PlannedShutdowns": "Є планові відключення",
-    "EmergencyShutdowns": "Аварійні відключення",
-}
 
-raw_status = payload.get("status")
-status = status_map.get(raw_status, "Статус уточнюється")
+    status_map = {
+        "ScheduleApplies": "Графік відключень діє",
+        "WaitingForSchedule": "Графік очікується",
+        "NoShutdowns": "Планових відключень немає",
+        "PlannedShutdowns": "Є планові відключення",
+        "EmergencyShutdowns": "Аварійні відключення",
+    }
+
+    raw_status = payload.get("status")
+    status = status_map.get(raw_status, "Статус уточнюється")
+
     date = payload.get("date") or "Дата не вказана"
 
-if date != "Дата не вказана":
-    try:
-        date = datetime.fromisoformat(
-            date.replace("Z", "+00:00")
-        ).strftime("%d.%m.%Y")
-    except ValueError:
-        pass
+    if isinstance(date, str) and date != "Дата не вказана":
+        try:
+            date = datetime.fromisoformat(
+                date.replace("Z", "+00:00")
+            ).strftime("%d.%m.%Y")
+        except ValueError:
+            pass
+
     day_label = "Сьогодні" if day == "today" else "Завтра"
 
     lines = [
@@ -322,7 +326,8 @@ if date != "Дата не вказана":
     ]
 
     outages = [
-        slot for slot in slots
+        slot
+        for slot in slots
         if str(slot.get("type", "")).lower().replace("_", "")
         in ("definite", "definiteoutage")
     ]
@@ -331,7 +336,6 @@ if date != "Дата не вказана":
 
     if outages:
         lines.append("🔴 Періоди відключень:")
-
         for slot in outages:
             lines.append(
                 f"• {format_minutes(slot['start'])}"
@@ -349,8 +353,6 @@ if date != "Дата не вказана":
     ])
 
     return "\n".join(lines)
-
-
 # =========================================================
 # ECOFLOW — ПОКИ ЗАГЛУШКА
 # =========================================================
