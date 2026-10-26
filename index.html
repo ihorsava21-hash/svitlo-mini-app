@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Світло Дім</title>
+    <title>POWER / KYIV</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --bg-color: var(--tg-theme-bg-color, #1c1c1e);
-            --text-color: var(--tg-theme-text-color, #ffffff);
-            --card-bg: var(--tg-theme-secondary-bg-color, #2c2c2e);
-            --hint-color: var(--tg-theme-hint-color, #8e8e93);
-            --accent-color: var(--tg-theme-button-color, #007aff);
-            --green: #32d74b;
-            --red: #ff453a;
-            --orange: #ff9f0a;
+            --bg-color: #17191D;
+            --panel-bg: #22252B;
+            --text-color: #F2F3F5;
+            --muted-color: #9298A3;
+            --line-color: #373B43;
+            --green: #83C99A;
+            --red: #E68C88;
+            --yellow: #E4C77E;
+            --empty: #41454E;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -28,112 +29,243 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
         .header h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+            font-weight: 700;
         }
         .header span {
-            font-size: 13px;
-            color: var(--hint-color);
+            font-size: 12px;
+            color: var(--muted-color);
         }
         .card {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            padding: 20px;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .headline {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .detail {
+            font-size: 13px;
+            color: var(--muted-color);
+        }
+        .badge {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .timeline {
+            display: flex;
+            gap: 2px;
+            height: 8px;
+            margin: 16px 0 8px 0;
+        }
+        .timeline-seg {
+            flex: 1;
+            border-radius: 2px;
+            background-color: var(--empty);
+        }
+        .timeline-seg.current {
+            outline: 1px solid var(--text-color);
+        }
+        .ticks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--muted-color);
             margin-bottom: 16px;
         }
-        .ecoflow-header {
+        .period-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
-        }
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 600;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--line-color);
             font-size: 14px;
         }
-        .status-on {
-            background-color: rgba(50, 215, 75, 0.15);
-            color: var(--green);
-        }
-        .status-off {
-            background-color: rgba(255, 69, 58, 0.15);
-            color: var(--red);
-        }
-        .battery-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-        .battery-bar {
-            height: 12px;
-            background-color: rgba(142, 142, 147, 0.2);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .battery-fill {
-            height: 100%;
-            border-radius: 10px;
-            transition: width 0.5s ease-in-out;
-        }
-        .schedule-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: var(--hint-color);
-        }
-        .period {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(142, 142, 147, 0.2);
-        }
-        .period:last-child {
+        .period-row:last-child {
             border-bottom: none;
-            padding-bottom: 0;
         }
         .period-time {
-            font-size: 18px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        .period-status {
-            font-size: 14px;
-            font-weight: 500;
-        }
-        .text-green { color: var(--green); }
-        .text-red { color: var(--red); }
-        .text-orange { color: var(--orange); }
         .btn-refresh {
-            display: block;
             width: 100%;
-            padding: 14px;
-            background-color: var(--accent-color);
-            color: white;
-            border-radius: 12px;
+            padding: 12px;
+            border-radius: 10px;
             border: none;
-            font-size: 16px;
+            background-color: var(--panel-bg);
+            color: var(--text-color);
             font-weight: 600;
-            margin-top: 24px;
             cursor: pointer;
+            margin-top: 10px;
+            border: 1px solid var(--line-color);
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🏠 Дім</h1>
-        <span id="time-updated">Оновлення...</span>
+        <div>
+            <h1>POWER / KYIV</h1>
+            <span style="font-size: 11px;">ЧЕРГА 35.1</span>
+        </div>
+        <span id="update-label">Оновлення...</span>
     </div>
 
     <div class="card">
-        <div class="ecoflow-header">
-            <div>
-                <h2 style="margin:
+        <div class="headline">
+            <span id="status-dot" class="badge"></span>
+            <span id="headline-text">Завантаження...</span>
+        </div>
+        <div id="detail-text" class="detail">З'єднання з сервером YASNO...</div>
+        
+        <div id="timeline-bar" class="timeline"></div>
+        <div class="ticks">
+            <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 12px; font-weight: 600; color: var(--muted-color); margin-bottom: 8px;">НАЙБЛИЖЧІ ПЕРІОДИ</div>
+        <div id="intervals-container">Завантаження...</div>
+    </div>
+
+    <button class="btn-refresh" onclick="loadDashboard()">↻ Оновити дані</button>
+
+    <script>
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+
+        const API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages";
+        const QUEUE = "35.1";
+
+        function hhmm(m) {
+            const h = Math.floor(m / 60);
+            const min = m % 60;
+            return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+        }
+
+        async function loadDashboard() {
+            try {
+                const res = await fetch(API);
+                const data = await res.json();
+                const group = data[QUEUE];
+
+                if (!group || !group.today || !Array.isArray(group.today.slots)) {
+                    throw new Error("Не знайдено розклад черги");
+                }
+
+                const slots = group.today.slots;
+                const status = group.today.status;
+                const now = new Date();
+                const nowM = now.getHours() * 60 + now.getMinutes();
+
+                document.getElementById('update-label').innerText = `YASNO · ${now.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
+
+                const dot = document.getElementById('status-dot');
+                const head = document.getElementById('headline-text');
+                const detail = document.getElementById('detail-text');
+
+                if (status !== "ScheduleApplies") {
+                    dot.style.backgroundColor = "var(--yellow)";
+                    head.innerText = "Графік очікується";
+                    detail.innerText = "YASNO ще не підтвердив розклад";
+                } else {
+                    const active = slots.find(s => s.type === "definite" && nowM >= s.start && nowM < s.end);
+                    const next = slots.find(s => s.type === "definite" && s.start > nowM);
+
+                    if (active) {
+                        dot.style.backgroundColor = "var(--red)";
+                        head.innerText = "Світла немає";
+                        detail.innerText = `За графіком до ${hhmm(active.end)}`;
+                    } else {
+                        dot.style.backgroundColor = "var(--green)";
+                        head.innerText = "Світло є";
+                        detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
+                    }
+                }
+
+                // Шкала 24 години
+                const bar = document.getElementById('timeline-bar');
+                bar.innerHTML = '';
+                const curHour = now.getHours();
+
+                for (let h = 0; h < 24; h++) {
+                    const seg = document.createElement('div');
+                    seg.className = `timeline-seg ${h === curHour ? 'current' : ''}`;
+                    const a = h * 60;
+                    const b = a + 60;
+
+                    const match = slots.filter(s => s.start < b && s.end > a);
+                    if (status === "ScheduleApplies") {
+                        if (match.some(s => s.type === "definite")) {
+                            seg.style.backgroundColor = "var(--red)";
+                        } else if (match.some(s => s.type === "notplanned")) {
+                            seg.style.backgroundColor = "var(--green)";
+                        } else {
+                            seg.style.backgroundColor = "var(--yellow)";
+                        }
+                    }
+                    bar.appendChild(seg);
+                }
+
+                // Інтервали
+                const sorted = [...slots]
+                    .filter(s => s.type === "definite" || s.type === "notplanned")
+                    .sort((a, b) => a.start - b.start);
+
+                const intervals = [];
+                for (const s of sorted) {
+                    const last = intervals[intervals.length - 1];
+                    if (last && last.end === s.start && last.type === s.type) {
+                        last.end = s.end;
+                    } else {
+                        intervals.push({ start: s.start, end: s.end, type: s.type });
+                    }
+                }
+
+                const visible = intervals.filter(i => i.end > nowM).slice(0, 3);
+                const container = document.getElementById('intervals-container');
+                container.innerHTML = '';
+
+                if (visible.length === 0) {
+                    container.innerHTML = '<span class="detail">Більше немає інтервалів на сьогодні</span>';
+                } else {
+                    visible.forEach(i => {
+                        const isOff = i.type === "definite";
+                        const row = document.createElement('div');
+                        row.className = 'period-row';
+                        row.innerHTML = `
+                            <div class="period-time">
+                                <span class="badge" style="background-color: ${isOff ? 'var(--red)' : 'var(--green)'}"></span>
+                                ${hhmm(i.start)}–${hhmm(i.end)}
+                            </div>
+                            <span class="detail">${isOff ? 'Світла немає' : 'Світло є за графіком'}</span>
+                        `;
+                        container.appendChild(row);
+                    });
+                }
+            } catch (err) {
+                document.getElementById('headline-text').innerText = "Помилка";
+                document.getElementById('detail-text').innerText = err.message;
+            }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>
