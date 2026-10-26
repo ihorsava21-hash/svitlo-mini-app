@@ -293,7 +293,16 @@ def format_schedule_for_telegram(group, day):
         return payload.get("error", "Не вдалося отримати графік.")
 
     slots = payload["slots"]
-    status = payload.get("status", "Статус невідомий")
+    status_map = {
+    "ScheduleApplies": "Графік відключень діє",
+    "WaitingForSchedule": "Графік очікується",
+    "NoShutdowns": "Планових відключень немає",
+    "PlannedShutdowns": "Є планові відключення",
+    "EmergencyShutdowns": "Аварійні відключення",
+}
+
+raw_status = payload.get("status")
+status = status_map.get(raw_status, "Статус уточнюється")
     date = payload.get("date") or "Дата не вказана"
 
 if date != "Дата не вказана":
