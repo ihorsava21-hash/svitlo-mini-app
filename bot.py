@@ -10,7 +10,7 @@ import threading
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-BOT_TOKEN = '8680430959:AAE8T_Q4ffvdl6O7OXZ6cv9UinNbdeuz8g8'
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_CHAT_ID = '367762402'
 GROUP = '35.1'
 YASNO_API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages"
