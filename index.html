@@ -1,364 +1,1009 @@
+
+
 <!DOCTYPE html>
+
 <html lang="uk">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+    <meta name="theme-color" content="#17191D">
+
     <title>POWER / KYIV</title>
+
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
     <style>
+
         :root {
+
             --bg-color: #17191D;
+
             --panel-bg: #22252B;
+
             --text-color: #F2F3F5;
+
             --muted-color: #9298A3;
+
             --line-color: #373B43;
+
             --green: #83C99A;
+
             --red: #E68C88;
+
             --yellow: #E4C77E;
+
             --empty: #41454E;
+
             --active-tab: #2F333D;
+
         }
+
+        * { box-sizing: border-box; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg-color);
+
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+
+                Roboto, sans-serif;
+
+            background: var(--bg-color);
+
             color: var(--text-color);
+
             margin: 0;
+
             padding: 16px;
-            box-sizing: border-box;
+
             user-select: none;
+
         }
+
         .header {
+
             display: flex;
+
             justify-content: space-between;
+
             align-items: center;
+
+            gap: 12px;
+
             margin-bottom: 12px;
+
         }
+
         .header h1 {
+
             margin: 0;
+
             font-size: 16px;
-            letter-spacing: 0.5px;
+
+            letter-spacing: .5px;
+
             font-weight: 700;
+
         }
+
         .group-select {
-            background-color: var(--panel-bg);
+
+            background: var(--panel-bg);
+
             color: var(--text-color);
+
             border: 1px solid var(--line-color);
+
             border-radius: 8px;
-            padding: 6px 10px;
-            font-size: 13px;
-            font-weight: 600;
-            outline: none;
-            max-width: 140px;
-        }
-        .tabs {
-            display: flex;
-            background-color: var(--panel-bg);
-            border-radius: 10px;
-            padding: 4px;
-            gap: 4px;
-            margin-bottom: 12px;
-            border: 1px solid var(--line-color);
-        }
-        .tab-btn {
-            flex: 1;
+
             padding: 8px;
-            text-align: center;
+
             font-size: 13px;
-            font-weight: 600;
-            border-radius: 8px;
-            border: none;
-            background: transparent;
-            color: var(--muted-color);
-            cursor: pointer;
-            transition: 0.2s;
+
+            max-width: 145px;
+
         }
-        .tab-btn.active {
-            background-color: var(--active-tab);
-            color: var(--text-color);
-        }
-        .card {
-            background-color: var(--panel-bg);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-        }
-        .headline {
-            font-size: 18px;
-            font-weight: 700;
+
+        .tabs {
+
             display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 4px;
-        }
-        .detail {
-            font-size: 13px;
-            color: var(--muted-color);
-        }
-        .badge {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: var(--yellow);
-        }
-        .timeline {
-            display: flex;
-            gap: 2px;
-            height: 8px;
-            margin: 16px 0 8px 0;
-        }
-        .timeline-seg {
-            flex: 1;
-            border-radius: 2px;
-            background-color: var(--empty);
-        }
-        .timeline-seg.current {
-            outline: 1px solid var(--text-color);
-        }
-        .ticks {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            color: var(--muted-color);
-            margin-bottom: 16px;
-        }
-        .period-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--line-color);
-            font-size: 14px;
-        }
-        .period-row:last-child {
-            border-bottom: none;
-        }
-        .period-time {
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .btn-refresh {
-            width: 100%;
-            padding: 12px;
+
+            background: var(--panel-bg);
+
             border-radius: 10px;
-            border: none;
-            background-color: var(--panel-bg);
-            color: var(--text-color);
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 6px;
+
+            padding: 4px;
+
+            gap: 4px;
+
+            margin-bottom: 12px;
+
             border: 1px solid var(--line-color);
+
         }
+
+        .tab-btn {
+
+            flex: 1;
+
+            padding: 10px 8px;
+
+            font-size: 13px;
+
+            font-weight: 600;
+
+            border-radius: 8px;
+
+            border: none;
+
+            background: transparent;
+
+            color: var(--muted-color);
+
+        }
+
+        .tab-btn.active {
+
+            background: var(--active-tab);
+
+            color: var(--text-color);
+
+        }
+
+        .card {
+
+            background: var(--panel-bg);
+
+            border-radius: 12px;
+
+            padding: 16px;
+
+            margin-bottom: 12px;
+
+        }
+
+        .headline {
+
+            font-size: 18px;
+
+            font-weight: 700;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            margin-bottom: 4px;
+
+        }
+
+        .detail {
+
+            font-size: 13px;
+
+            color: var(--muted-color);
+
+            line-height: 1.5;
+
+        }
+
+        .badge {
+
+            display: inline-block;
+
+            flex: 0 0 8px;
+
+            width: 8px;
+
+            height: 8px;
+
+            border-radius: 50%;
+
+            background: var(--yellow);
+
+        }
+
+        .timeline {
+
+            display: flex;
+
+            gap: 2px;
+
+            height: 9px;
+
+            margin: 16px 0 8px;
+
+        }
+
+        .timeline-seg {
+
+            flex: 1;
+
+            min-width: 0;
+
+            border-radius: 2px;
+
+            background: var(--empty);
+
+        }
+
+        .timeline-seg.current {
+
+            outline: 1px solid var(--text-color);
+
+            outline-offset: 1px;
+
+        }
+
+        .ticks {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            font-size: 10px;
+
+            color: var(--muted-color);
+
+            margin-bottom: 16px;
+
+        }
+
+        .period-row {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            gap: 8px;
+
+            padding: 10px 0;
+
+            border-bottom: 1px solid var(--line-color);
+
+            font-size: 13px;
+
+        }
+
+        .period-row:last-child { border-bottom: none; }
+
+        .period-time {
+
+            font-weight: 600;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 6px;
+
+            white-space: nowrap;
+
+        }
+
+        .period-row .detail {
+
+            text-align: right;
+
+        }
+
+        .btn-refresh {
+
+            width: 100%;
+
+            padding: 13px;
+
+            border-radius: 10px;
+
+            border: 1px solid var(--line-color);
+
+            background: var(--panel-bg);
+
+            color: var(--text-color);
+
+            font-weight: 600;
+
+            margin-top: 6px;
+
+        }
+
+        .btn-refresh:disabled {
+
+            opacity: .6;
+
+        }
+
     </style>
+
 </head>
+
 <body>
+
     <div class="header">
+
         <div>
+
             <h1>POWER / KYIV</h1>
-            <span id="update-label" style="font-size: 11px; color: var(--muted-color);">YASNO v2</span>
+
+            <span id="update-label" class="detail">YASNO · Завантаження</span>
+
         </div>
-        <div>
-            <select id="group-select" class="group-select" onchange="onGroupChange()">
-                <option value="35.1">Черга 35.1</option>
-            </select>
-        </div>
+
+        <select id="group-select" class="group-select"
+
+                aria-label="Вибір черги">
+
+            <option value="35.1">Черга 35.1</option>
+
+        </select>
+
     </div>
 
     <div class="tabs">
-        <button id="tab-today" class="tab-btn active" onclick="switchDay('today')">Сьогодні</button>
-        <button id="tab-tomorrow" class="tab-btn" onclick="switchDay('tomorrow')">Завтра</button>
+
+        <button id="tab-today" class="tab-btn active"
+
+                onclick="switchDay('today')">Сьогодні</button>
+
+        <button id="tab-tomorrow" class="tab-btn"
+
+                onclick="switchDay('tomorrow')">Завтра</button>
+
     </div>
 
     <div class="card">
+
         <div class="headline">
+
             <span id="status-dot" class="badge"></span>
+
             <span id="headline-text">Завантаження...</span>
+
         </div>
+
         <div id="detail-text" class="detail">Отримання графіка...</div>
-        
+
         <div id="timeline-bar" class="timeline"></div>
+
         <div class="ticks">
-            <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+
+            <span>00</span><span>06</span><span>12</span>
+
+            <span>18</span><span>24</span>
+
         </div>
+
     </div>
 
     <div class="card">
-        <div style="font-size: 12px; font-weight: 600; color: var(--muted-color); margin-bottom: 8px;">ПЕРІОДИ ВІДКЛЮЧЕНЬ</div>
-        <div id="intervals-container">Завантаження...</div>
+
+        <div style="font-size:12px;font-weight:600;color:var(--muted-color);margin-bottom:8px">
+
+            ПЕРІОДИ ВІДКЛЮЧЕНЬ
+
+        </div>
+
+        <div id="intervals-container" class="detail">
+
+            Завантаження...
+
+        </div>
+
     </div>
 
-    <button class="btn-refresh" onclick="loadDashboard()">↻ Оновити дані</button>
+    <button id="refresh-button" class="btn-refresh"
+
+            onclick="loadDashboard()">↻ Оновити дані</button>
 
     <script>
-        try {
-            if (window.Telegram && window.Telegram.WebApp) {
-                window.Telegram.WebApp.ready();
-                window.Telegram.WebApp.expand();
-            }
-        } catch (e) {}
+
+        const tg = window.Telegram?.WebApp;
+
+        if (tg) {
+
+            tg.ready();
+
+            tg.expand();
+
+        }
 
         const SERVER = "https://svitlo-bot-ysac.onrender.com";
+
+        const REFRESH_MS = 60000;
+
         let currentDay = "today";
-        let currentGroup = localStorage.getItem("selected_group") || "35.1";
 
-        function switchDay(day) {
-            currentDay = day;
-            document.getElementById('tab-today').className = `tab-btn ${day === 'today' ? 'active' : ''}`;
-            document.getElementById('tab-tomorrow').className = `tab-btn ${day === 'tomorrow' ? 'active' : ''}`;
-            loadDashboard();
+        let loading = false;
+
+        let refreshTimer = null;
+
+        const $ = id => document.getElementById(id);
+
+        function readSavedGroup() {
+
+            try {
+
+                return localStorage.getItem("selected_group") || "35.1";
+
+            } catch {
+
+                return "35.1";
+
+            }
+
         }
 
-        function onGroupChange() {
-            currentGroup = document.getElementById('group-select').value;
-            localStorage.setItem("selected_group", currentGroup);
-            loadDashboard();
+        let currentGroup = readSavedGroup();
+
+        // Київський час незалежно від часового поясу пристрою.
+
+        function kyivParts() {
+
+            const parts = new Intl.DateTimeFormat("en-GB", {
+
+                timeZone: "Europe/Kyiv",
+
+                hour: "2-digit",
+
+                minute: "2-digit",
+
+                hourCycle: "h23"
+
+            }).formatToParts(new Date());
+
+            const get = type => Number(
+
+                parts.find(p => p.type === type)?.value || 0
+
+            );
+
+            return { hour: get("hour"), minute: get("minute") };
+
         }
 
-        function hhmm(m) {
-            const h = Math.floor(m / 60);
-            const min = m % 60;
-            return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+        function kyivTimeLabel() {
+
+            return new Intl.DateTimeFormat("uk-UA", {
+
+                timeZone: "Europe/Kyiv",
+
+                hour: "2-digit",
+
+                minute: "2-digit",
+
+                hourCycle: "h23"
+
+            }).format(new Date());
+
+        }
+
+        function hhmm(minutes) {
+
+            const h = Math.floor(minutes / 60);
+
+            const m = minutes % 60;
+
+            return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+        }
+
+        function normalizeType(slot) {
+
+            return String(slot?.type || "")
+
+                .toLowerCase()
+
+                .replace(/[\s_-]/g, "");
+
         }
 
         function isOutage(slot) {
-            const t = String(slot.type || "").toLowerCase().replace(/_/g, "");
-            return t === "definite" || t === "definiteoutage";
+
+            return normalizeType(slot) === "definite";
+
         }
 
         function isNotPlanned(slot) {
-            const t = String(slot.type || "").toLowerCase().replace(/_/g, "");
-            return t === "notplanned";
+
+            return normalizeType(slot) === "notplanned";
+
+        }
+
+        function validSlot(slot) {
+
+            return Number.isFinite(slot?.start) &&
+
+                Number.isFinite(slot?.end) &&
+
+                slot.start >= 0 &&
+
+                slot.end <= 1440 &&
+
+                slot.end > slot.start;
+
+        }
+
+        function setError(message) {
+
+            $("status-dot").style.backgroundColor = "var(--yellow)";
+
+            $("headline-text").innerText = "Немає актуальних даних";
+
+            $("detail-text").innerText = message;
+
+            $("timeline-bar").replaceChildren();
+
+            $("intervals-container").innerText = message;
+
+        }
+
+        async function apiGet(path) {
+
+            const response = await fetch(
+
+                `${SERVER}${path}`,
+
+                { cache: "no-store" }
+
+            );
+
+            if (!response.ok) {
+
+                throw new Error(`Помилка сервера: HTTP ${response.status}`);
+
+            }
+
+            return response.json();
+
         }
 
         async function fetchGroupsList() {
+
             try {
-                const res = await fetch(`${SERVER}/groups?t=${Date.now()}`);
-                const data = await res.json();
-                if (data && data.groups && data.groups.length > 0) {
-                    const sel = document.getElementById('group-select');
-                    sel.innerHTML = '';
-                    data.groups.forEach(g => {
-                        const opt = document.createElement('option');
-                        opt.value = g;
-                        opt.innerText = `Черга ${g}`;
-                        if (g === currentGroup) opt.selected = true;
-                        sel.appendChild(opt);
-                    });
+
+                const data = await apiGet("/groups");
+
+                if (!Array.isArray(data.groups) || data.groups.length === 0) {
+
+                    return;
+
                 }
-            } catch (e) {
-                console.log(e);
+
+                const select = $("group-select");
+
+                select.replaceChildren();
+
+                data.groups.forEach(group => {
+
+                    const option = document.createElement("option");
+
+                    option.value = String(group);
+
+                    option.textContent = `Черга ${group}`;
+
+                    select.appendChild(option);
+
+                });
+
+                if (data.groups.map(String).includes(currentGroup)) {
+
+                    select.value = currentGroup;
+
+                } else {
+
+                    currentGroup = String(data.groups[0]);
+
+                    select.value = currentGroup;
+
+                    saveGroup();
+
+                }
+
+            } catch (error) {
+
+                console.error("Не вдалося завантажити черги:", error);
+
+                // Якщо /groups недоступний, залишаємо поточний варіант.
+
             }
+
+        }
+
+        function saveGroup() {
+
+            try {
+
+                localStorage.setItem("selected_group", currentGroup);
+
+            } catch {}
+
+        }
+
+        function switchDay(day) {
+
+            currentDay = day;
+
+            $("tab-today").classList.toggle("active", day === "today");
+
+            $("tab-tomorrow").classList.toggle("active", day === "tomorrow");
+
+            loadDashboard();
+
+        }
+
+        $("group-select").addEventListener("change", event => {
+
+            currentGroup = event.target.value;
+
+            saveGroup();
+
+            loadDashboard();
+
+        });
+
+        function mergeSlots(slots) {
+
+            const sorted = slots
+
+                .filter(s => isOutage(s) || isNotPlanned(s))
+
+                .filter(validSlot)
+
+                .map(s => ({
+
+                    start: s.start,
+
+                    end: s.end,
+
+                    isOff: isOutage(s)
+
+                }))
+
+                .sort((a, b) => a.start - b.start);
+
+            const result = [];
+
+            for (const slot of sorted) {
+
+                const last = result[result.length - 1];
+
+                if (last && last.end === slot.start &&
+
+                    last.isOff === slot.isOff) {
+
+                    last.end = slot.end;
+
+                } else {
+
+                    result.push({ ...slot });
+
+                }
+
+            }
+
+            return result;
+
+        }
+
+        function renderTimeline(slots, nowMinutes) {
+
+            const bar = $("timeline-bar");
+
+            bar.replaceChildren();
+
+            const currentHour = currentDay === "today"
+
+                ? Math.floor(nowMinutes / 60)
+
+                : -1;
+
+            for (let hour = 0; hour < 24; hour++) {
+
+                const start = hour * 60;
+
+                const end = start + 60;
+
+                const segment = document.createElement("div");
+
+                segment.className = "timeline-seg";
+
+                if (hour === currentHour) {
+
+                    segment.classList.add("current");
+
+                }
+
+                const matches = slots.filter(s =>
+
+                    s.start < end && s.end > start
+
+                );
+
+                if (matches.some(isOutage)) {
+
+                    segment.style.backgroundColor = "var(--red)";
+
+                } else if (
+
+                    matches.length > 0 &&
+
+                    matches.every(isNotPlanned)
+
+                ) {
+
+                    segment.style.backgroundColor = "var(--green)";
+
+                } else {
+
+                    segment.style.backgroundColor = "var(--yellow)";
+
+                }
+
+                bar.appendChild(segment);
+
+            }
+
+        }
+
+        function renderIntervals(slots, nowMinutes) {
+
+            const container = $("intervals-container");
+
+            container.replaceChildren();
+
+            let intervals = mergeSlots(slots);
+
+            if (currentDay === "today") {
+
+                intervals = intervals.filter(i => i.end > nowMinutes);
+
+            }
+
+            if (intervals.length === 0) {
+
+                container.textContent = currentDay === "today"
+
+                    ? "Подальших визначених періодів у графіку немає."
+
+                    : "Визначених періодів у графіку немає.";
+
+                return;
+
+            }
+
+            intervals.forEach(interval => {
+
+                const row = document.createElement("div");
+
+                row.className = "period-row";
+
+                const time = document.createElement("div");
+
+                time.className = "period-time";
+
+                const dot = document.createElement("span");
+
+                dot.className = "badge";
+
+                dot.style.backgroundColor = interval.isOff
+
+                    ? "var(--red)"
+
+                    : "var(--green)";
+
+                time.append(dot);
+
+                time.append(
+
+                    document.createTextNode(
+
+                        `${hhmm(interval.start)}–${hhmm(interval.end)}`
+
+                    )
+
+                );
+
+                const label = document.createElement("span");
+
+                label.className = "detail";
+
+                label.textContent = interval.isOff
+
+                    ? "Відключення"
+
+                    : "Світло є за графіком";
+
+                row.append(time, label);
+
+                container.appendChild(row);
+
+            });
+
         }
 
         async function loadDashboard() {
-            const dot = document.getElementById('status-dot');
-            const head = document.getElementById('headline-text');
-            const detail = document.getElementById('detail-text');
-            const bar = document.getElementById('timeline-bar');
-            const container = document.getElementById('intervals-container');
+
+            if (loading) return;
+
+            loading = true;
+
+            $("refresh-button").disabled = true;
 
             try {
-                const res = await fetch(`${SERVER}/schedule?group=${currentGroup}&day=${currentDay}&t=${Date.now()}`);
-                const data = await res.json();
+
+                const params = new URLSearchParams({
+
+                    group: currentGroup,
+
+                    day: currentDay
+
+                });
+
+                const data = await apiGet(`/schedule?${params.toString()}`);
 
                 if (data.error) {
-                    dot.style.backgroundColor = "var(--yellow)";
-                    head.innerText = currentDay === 'tomorrow' ? "Графік на завтра формується" : "Графік очікується";
-                    detail.innerText = data.error;
-                    bar.innerHTML = '';
-                    container.innerHTML = '<span class="detail">Немає точного розкладу</span>';
+
+                    setError(data.error);
+
                     return;
+
                 }
 
-                const slots = data.slots || [];
-                const now = new Date();
-                const nowM = currentDay === 'today' ? (now.getHours() * 60 + now.getMinutes()) : -1;
+                if (!Array.isArray(data.slots)) {
 
-                document.getElementById('update-label').innerText = `YASNO · ${now.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
+                    throw new Error("Сервер повернув графік у невідомому форматі.");
 
-                if (currentDay === 'today') {
-                    const active = slots.find(s => isOutage(s) && nowM >= s.start && nowM < s.end);
-                    const next = slots.find(s => isOutage(s) && s.start > nowM);
+                }
+
+                const slots = data.slots.filter(validSlot);
+
+                const { hour, minute } = kyivParts();
+
+                const nowMinutes = hour * 60 + minute;
+
+                $("update-label").textContent =
+
+                    `YASNO · ${kyivTimeLabel()}`;
+
+                const hasSchedule = data.status &&
+
+                    ["WaitingForSchedule", "ScheduleApplies",
+
+                     "NoShutdowns", "PlannedShutdowns"]
+
+                        .includes(data.status);
+
+                if (data.status === "EmergencyShutdowns") {
+
+                    $("status-dot").style.backgroundColor = "var(--yellow)";
+
+                    $("headline-text").textContent = "Аварійний режим";
+
+                    $("detail-text").textContent =
+
+                        "Звичайний графік може не відповідати фактичним відключенням.";
+
+                } else if (currentDay === "today") {
+
+                    const active = slots.find(s =>
+
+                        isOutage(s) &&
+
+                        nowMinutes >= s.start &&
+
+                        nowMinutes < s.end
+
+                    );
+
+                    const next = slots
+
+                        .filter(s => isOutage(s) && s.start > nowMinutes)
+
+                        .sort((a, b) => a.start - b.start)[0];
 
                     if (active) {
-                        dot.style.backgroundColor = "var(--red)";
-                        head.innerText = "Світла немає";
-                        detail.innerText = `За графіком до ${hhmm(active.end)}`;
+
+                        $("status-dot").style.backgroundColor = "var(--red)";
+
+                        $("headline-text").textContent = "Відключення за графіком";
+
+                        $("detail-text").textContent =
+
+                            `За графіком до ${hhmm(active.end)}`;
+
+                    } else if (hasSchedule) {
+
+                        $("status-dot").style.backgroundColor = "var(--green)";
+
+                        $("headline-text").textContent = "Світло має бути";
+
+                        $("detail-text").textContent = next
+
+                            ? `Наступне відключення за графіком о ${hhmm(next.start)}`
+
+                            : "Подальших запланованих відключень немає";
+
                     } else {
-                        dot.style.backgroundColor = "var(--green)";
-                        head.innerText = "Світло є";
-                        detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
+
+                        $("status-dot").style.backgroundColor = "var(--yellow)";
+
+                        $("headline-text").textContent = "Перевір статус графіка";
+
+                        $("detail-text").textContent =
+
+                            "YASNO не підтвердив застосування цього графіка.";
+
                     }
+
                 } else {
-                    dot.style.backgroundColor = "var(--green)";
-                    head.innerText = "Графік на завтра";
-                    detail.innerText = `Черга ${currentGroup}`;
+
+                    $("status-dot").style.backgroundColor = "var(--yellow)";
+
+                    $("headline-text").textContent = "Графік на завтра";
+
+                    $("detail-text").textContent =
+
+                        `Черга ${currentGroup}` +
+
+                        (data.status ? ` · ${data.status}` : "");
+
                 }
 
-                bar.innerHTML = '';
-                const curHour = currentDay === 'today' ? now.getHours() : -1;
+                renderTimeline(slots, nowMinutes);
 
-                for (let h = 0; h < 24; h++) {
-                    const seg = document.createElement('div');
-                    seg.className = `timeline-seg ${h === curHour ? 'current' : ''}`;
-                    const a = h * 60;
-                    const b = a + 60;
+                renderIntervals(slots, nowMinutes);
 
-                    const match = slots.filter(s => s.start < b && s.end > a);
-                    if (match.some(isOutage)) {
-                        seg.style.backgroundColor = "var(--red)";
-                    } else if (match.some(isNotPlanned)) {
-                        seg.style.backgroundColor = "var(--green)";
-                    } else {
-                        seg.style.backgroundColor = "var(--yellow)";
-                    }
-                    bar.appendChild(seg);
+                if (data.updatedOn) {
+
+                    $("update-label").textContent =
+
+                        `YASNO · Оновлено ${data.updatedOn}`;
+
                 }
 
-                const sorted = [...slots].filter(s => isOutage(s) || isNotPlanned(s)).sort((a, b) => a.start - b.start);
-                const intervals = [];
-                for (const s of sorted) {
-                    const off = isOutage(s);
-                    const last = intervals[intervals.length - 1];
-                    if (last && last.end === s.start && last.isOff === off) {
-                        last.end = s.end;
-                    } else {
-                        intervals.push({ start: s.start, end: s.end, isOff: off });
-                    }
-                }
+            } catch (error) {
 
-                const visible = currentDay === 'today' ? intervals.filter(i => i.end > nowM) : intervals;
-                container.innerHTML = '';
+                console.error("Помилка завантаження графіка:", error);
 
-                if (visible.length === 0) {
-                    container.innerHTML = '<span class="detail">Відключень за графіком немає</span>';
-                } else {
-                    visible.forEach(i => {
-                        const row = document.createElement('div');
-                        row.className = 'period-row';
-                        row.innerHTML = `
-                            <div class="period-time">
-                                <span class="badge" style="background-color: ${i.isOff ? 'var(--red)' : 'var(--green)'}"></span>
-                                ${hhmm(i.start)}–${hhmm(i.end)}
-                            </div>
-                            <span class="detail">${i.isOff ? 'Світла немає' : 'Світло є за графіком'}</span>
-                        `;
-                        container.appendChild(row);
-                    });
-                }
-            } catch (err) {
-                dot.style.backgroundColor = "var(--yellow)";
-                head.innerText = "Сервер Render прокидається...";
-                detail.innerText = "Натисніть кнопку «Оновити дані» через 10 секунд";
+                setError(
+
+                    "Не вдалося отримати графік. Перевірте підключення " +
+
+                    "або спробуйте оновити дані пізніше."
+
+                );
+
+            } finally {
+
+                loading = false;
+
+                $("refresh-button").disabled = false;
+
             }
+
         }
 
-        fetchGroupsList().then(loadDashboard);
+        async function init() {
+
+            await fetchGroupsList();
+
+            await loadDashboard();
+
+            if (refreshTimer) clearInterval(refreshTimer);
+
+            refreshTimer = setInterval(loadDashboard, REFRESH_MS);
+
+        }
+
+        init();
+
     </script>
+
 </body>
+
 </html>
