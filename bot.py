@@ -12,7 +12,7 @@ GROUP = '35.1'
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# --- Додаємо міні-сервер для Render ---
+# --- Оновлений міні-сервер для Render ---
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -22,9 +22,15 @@ class DummyHandler(BaseHTTPRequestHandler):
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 10000))
-    server_address = ('', port)
+    # ОБОВ'ЯЗКОВО '0.0.0.0', щоб Render побачив порт
+    server_address = ('0.0.0.0', port)
     httpd = HTTPServer(server_address, DummyHandler)
+    print(f"Веб-сервер запущено на порту {port}")
     httpd.serve_forever()
+
+# Запускаємо сервер у фоновому потоці
+threading.Thread(target=run_dummy_server, daemon=True).start()
+# ----------------------------------------
 
 # Запускаємо сервер у фоновому потоці
 threading.Thread(target=run_dummy_server, daemon=True).start()
