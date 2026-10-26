@@ -158,6 +158,20 @@
             return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
         }
 
+        function typeOf(slot) {
+            return String(slot.type || "").toLowerCase().replace(/_/g, "");
+        }
+
+        function isOutage(slot) {
+            const t = typeOf(slot);
+            return t === "definite" || t === "definiteoutage";
+        }
+
+        function isNotPlanned(slot) {
+            const t = typeOf(slot);
+            return t === "notplanned";
+        }
+
         async function loadDashboard() {
             try {
                 const res = await fetch(API);
@@ -181,8 +195,8 @@
                 const head = document.getElementById('headline-text');
                 const detail = document.getElementById('detail-text');
 
-                const active = slots.find(s => s.type === "definite" && nowM >= s.start && nowM < s.end);
-                const next = slots.find(s => s.type === "definite" && s.start > nowM);
+                const active = slots.find(s => isOutage(s) && nowM >= s.start && nowM < s.end);
+                const next = slots.find(s => isOutage(s) && s.start > nowM);
 
                 if (active) {
                     dot.style.backgroundColor = "var(--red)";
@@ -194,7 +208,7 @@
                     detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
                 }
 
-                // Шкала 24 години
+                // 24-годинна шкала
                 const bar = document.getElementById('timeline-bar');
                 bar.innerHTML = '';
                 const curHour = now.getHours();
@@ -206,9 +220,9 @@
                     const b = a + 60;
 
                     const match = slots.filter(s => s.start < b && s.end > a);
-                    if (match.some(s => s.type === "definite")) {
+                    if (match.some(isOutage)) {
                         seg.style.backgroundColor = "var(--red)";
-                    } else if (match.some(s => s.type === "notplanned")) {
+                    } else if (match.some(isNotPlanned)) {
                         seg.style.backgroundColor = "var(--green)";
                     } else {
                         seg.style.backgroundColor = "var(--yellow)";
@@ -216,18 +230,19 @@
                     bar.appendChild(seg);
                 }
 
-                // Інтервали
+                // Об'єднання суміжних періодів одного типу
                 const sorted = [...slots]
-                    .filter(s => s.type === "definite" || s.type === "notplanned")
+                    .filter(s => isOutage(s) || isNotPlanned(s))
                     .sort((a, b) => a.start - b.start);
 
                 const intervals = [];
                 for (const s of sorted) {
+                    const off = isOutage(s);
                     const last = intervals[intervals.length - 1];
-                    if (last && last.end === s.start && last.type === s.type) {
+                    if (last && last.end === s.start && last.isOff === off) {
                         last.end = s.end;
                     } else {
-                        intervals.push({ start: s.start, end: s.end, type: s.type });
+                        intervals.push({ start: s.start, end: s.end, isOff: off });
                     }
                 }
 
@@ -239,15 +254,14 @@
                     container.innerHTML = '<span class="detail">Більше немає інтервалів на сьогодні</span>';
                 } else {
                     visible.forEach(i => {
-                        const isOff = i.type === "definite";
                         const row = document.createElement('div');
                         row.className = 'period-row';
                         row.innerHTML = `
                             <div class="period-time">
-                                <span class="badge" style="background-color: ${isOff ? 'var(--red)' : 'var(--green)'}"></span>
+                                <span class="badge" style="background-color: ${i.isOff ? 'var(--red)' : 'var(--green)'}"></span>
                                 ${hhmm(i.start)}–${hhmm(i.end)}
                             </div>
-                            <span class="detail">${isOff ? 'Світла немає' : 'Світло є за графіком'}</span>
+                            <span class="detail">${i.isOff ? 'Світла немає' : 'Світло є за графіком'}</span>
                         `;
                         container.appendChild(row);
                     });
