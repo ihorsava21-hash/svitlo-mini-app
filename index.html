@@ -43,8 +43,8 @@
             color: var(--text-color);
             border: 1px solid var(--line-color);
             border-radius: 8px;
-            padding: 4px 8px;
-            font-size: 12px;
+            padding: 6px 10px;
+            font-size: 13px;
             font-weight: 600;
             outline: none;
         }
@@ -68,6 +68,7 @@
             background: transparent;
             color: var(--muted-color);
             cursor: pointer;
+            transition: 0.2s;
         }
         .tab-btn.active {
             background-color: var(--active-tab);
@@ -156,13 +157,13 @@
             <span id="update-label" style="font-size: 11px; color: var(--muted-color);">YASNO</span>
         </div>
         <div>
-            <label style="font-size: 11px; color: var(--muted-color); margin-right: 4px;">ЧЕРГА</label>
             <select id="group-select" class="group-select" onchange="onGroupChange()">
-                <option value="35.1">35.1</option>
+                <option value="35.1">Черга 35.1</option>
             </select>
         </div>
     </div>
 
+    <!-- Вкладки Сьогодні / Завтра -->
     <div class="tabs">
         <button id="tab-today" class="tab-btn active" onclick="switchDay('today')">Сьогодні</button>
         <button id="tab-tomorrow" class="tab-btn" onclick="switchDay('tomorrow')">Завтра</button>
@@ -196,17 +197,24 @@
         let currentDay = "today";
         let currentGroup = localStorage.getItem("selected_group") || "35.1";
 
+        function parseGroup(g) {
+            const parts = g.split('.').map(Number);
+            return parts[0] * 100 + (parts[1] || 0);
+        }
+
         async function initGroups() {
             try {
                 const res = await fetch(`${BACKEND_URL}/groups`);
                 const data = await res.json();
                 if (data.groups && data.groups.length > 0) {
+                    // Математичне сортування: 1.1, 1.2, 2.1...
+                    const sorted = data.groups.sort((a, b) => parseGroup(a) - parseGroup(b));
                     const select = document.getElementById('group-select');
                     select.innerHTML = '';
-                    data.groups.forEach(g => {
+                    sorted.forEach(g => {
                         const opt = document.createElement('option');
                         opt.value = g;
-                        opt.innerText = g;
+                        opt.innerText = `Черга ${g}`;
                         if (g === currentGroup) opt.selected = true;
                         select.appendChild(opt);
                     });
@@ -262,10 +270,10 @@
 
                 if (data.error) {
                     dot.style.backgroundColor = "var(--yellow)";
-                    head.innerText = currentDay === 'tomorrow' ? "Графік на завтра відсутній" : "Графік очікується";
+                    head.innerText = currentDay === 'tomorrow' ? "Графік на завтра очікується" : "Графік очікується";
                     detail.innerText = data.error;
                     bar.innerHTML = '';
-                    container.innerHTML = '<span class="detail">Розклад ще не сформований YASNO</span>';
+                    container.innerHTML = '<span class="detail">Розклад ще не опублікований YASNO</span>';
                     return;
                 }
 
@@ -294,7 +302,7 @@
                     detail.innerText = `Черга ${currentGroup}`;
                 }
 
-                // Шкала
+                // 24-годинна лінія
                 bar.innerHTML = '';
                 const curHour = currentDay === 'today' ? now.getHours() : -1;
 
