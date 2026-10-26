@@ -3,15 +3,35 @@ from telebot import types
 import requests
 import datetime
 import random
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BOT_TOKEN = '8680430959:AAE8T_Q4ffvdl6O7OXZ6cv9UinNbdeuz8g8'
 GROUP = '35.1'
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# --- Додаємо міні-сервер для Render ---
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"Bot is running!")
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, DummyHandler)
+    httpd.serve_forever()
+
+# Запускаємо сервер у фоновому потоці
+threading.Thread(target=run_dummy_server, daemon=True).start()
+# ----------------------------------------
+
 def get_outages():
     try:
-        # Відкрите API, яке буде працювати на Render
         url = "https://yasno.energal.info/api/v1/schedules"
         res = requests.get(url, timeout=10).json()
         outages = []
