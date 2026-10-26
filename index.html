@@ -2,6 +2,9 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POWER / KYIV</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -157,7 +160,7 @@
     <div class="header">
         <div>
             <h1>POWER / KYIV</h1>
-            <span id="update-label" style="font-size: 11px; color: var(--muted-color);">YASNO</span>
+            <span id="update-label" style="font-size: 11px; color: var(--muted-color);">YASNO v2</span>
         </div>
         <div>
             <select id="group-select" class="group-select" onchange="onGroupChange()">
@@ -166,7 +169,6 @@
         </div>
     </div>
 
-    <!-- Вкладки Сьогодні / Завтра -->
     <div class="tabs">
         <button id="tab-today" class="tab-btn active" onclick="switchDay('today')">Сьогодні</button>
         <button id="tab-tomorrow" class="tab-btn" onclick="switchDay('tomorrow')">Завтра</button>
@@ -177,7 +179,7 @@
             <span id="status-dot" class="badge"></span>
             <span id="headline-text">Завантаження...</span>
         </div>
-        <div id="detail-text" class="detail">Отримання даних YASNO...</div>
+        <div id="detail-text" class="detail">Отримання графіка...</div>
         
         <div id="timeline-bar" class="timeline"></div>
         <div class="ticks">
@@ -187,10 +189,10 @@
 
     <div class="card">
         <div style="font-size: 12px; font-weight: 600; color: var(--muted-color); margin-bottom: 8px;">ПЕРІОДИ ВІДКЛЮЧЕНЬ</div>
-        <div id="intervals-container">Завантаження розкладу...</div>
+        <div id="intervals-container">Завантаження...</div>
     </div>
 
-    <button class="btn-refresh" onclick="fetchAndRender()">↻ Оновити дані</button>
+    <button class="btn-refresh" onclick="loadDashboard()">↻ Оновити дані</button>
 
     <script>
         try {
@@ -200,14 +202,21 @@
             }
         } catch (e) {}
 
-        const YASNO_API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages";
-        let rawYasnoData = null;
+        const SERVER = "https://svitlo-bot-ysac.onrender.com";
         let currentDay = "today";
         let currentGroup = localStorage.getItem("selected_group") || "35.1";
 
-        function parseGroupKey(g) {
-            const parts = String(g).split('.').map(Number);
-            return (parts[0] || 0) * 1000 + (parts[1] || 0);
+        function switchDay(day) {
+            currentDay = day;
+            document.getElementById('tab-today').className = `tab-btn ${day === 'today' ? 'active' : ''}`;
+            document.getElementById('tab-tomorrow').className = `tab-btn ${day === 'tomorrow' ? 'active' : ''}`;
+            loadDashboard();
+        }
+
+        function onGroupChange() {
+            currentGroup = document.getElementById('group-select').value;
+            localStorage.setItem("selected_group", currentGroup);
+            loadDashboard();
         }
 
         function hhmm(m) {
@@ -216,176 +225,140 @@
             return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
         }
 
-        function typeOf(slot) {
-            return String(slot.type || "").toLowerCase().replace(/_/g, "");
-        }
-
         function isOutage(slot) {
-            const t = typeOf(slot);
+            const t = String(slot.type || "").toLowerCase().replace(/_/g, "");
             return t === "definite" || t === "definiteoutage";
         }
 
         function isNotPlanned(slot) {
-            return typeOf(slot) === "notplanned";
+            const t = String(slot.type || "").toLowerCase().replace(/_/g, "");
+            return t === "notplanned";
         }
 
-        function switchDay(day) {
-            currentDay = day;
-            document.getElementById('tab-today').className = `tab-btn ${day === 'today' ? 'active' : ''}`;
-            document.getElementById('tab-tomorrow').className = `tab-btn ${day === 'tomorrow' ? 'active' : ''}`;
-            renderData();
-        }
-
-        function onGroupChange() {
-            currentGroup = document.getElementById('group-select').value;
-            localStorage.setItem("selected_group", currentGroup);
-            renderData();
-        }
-
-        async function fetchAndRender() {
+        async function fetchGroupsList() {
             try {
-                const res = await fetch(YASNO_API);
-                rawYasnoData = await res.json();
-
-                // Отримуємо абсолютно всі наявні черги
-                const allKeys = Object.keys(rawYasnoData).filter(k => {
-                    const item = rawYasnoData[k];
-                    return item && typeof item === 'object' && (item.today || item.tomorrow);
-                });
-
-                // Сортуємо математично правильно (1.1, 1.2 ... 10.1 ... 35.1)
-                allKeys.sort((a, b) => parseGroupKey(a) - parseGroupKey(b));
-
-                const select = document.getElementById('group-select');
-                select.innerHTML = '';
-                allKeys.forEach(g => {
-                    const opt = document.createElement('option');
-                    opt.value = g;
-                    opt.innerText = `Черга ${g}`;
-                    if (g === currentGroup) opt.selected = true;
-                    select.appendChild(opt);
-                });
-
-                renderData();
-            } catch (err) {
-                document.getElementById('headline-text').innerText = "Помилка зв'язку";
-                document.getElementById('detail-text').innerText = "Не вдалося отримати дані від YASNO";
+                const res = await fetch(`${SERVER}/groups?t=${Date.now()}`);
+                const data = await res.json();
+                if (data && data.groups && data.groups.length > 0) {
+                    const sel = document.getElementById('group-select');
+                    sel.innerHTML = '';
+                    data.groups.forEach(g => {
+                        const opt = document.createElement('option');
+                        opt.value = g;
+                        opt.innerText = `Черга ${g}`;
+                        if (g === currentGroup) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.log(e);
             }
         }
 
-        function renderData() {
+        async function loadDashboard() {
             const dot = document.getElementById('status-dot');
             const head = document.getElementById('headline-text');
             const detail = document.getElementById('detail-text');
             const bar = document.getElementById('timeline-bar');
             const container = document.getElementById('intervals-container');
 
-            if (!rawYasnoData) return;
+            try {
+                const res = await fetch(`${SERVER}/schedule?group=${currentGroup}&day=${currentDay}&t=${Date.now()}`);
+                const data = await res.json();
 
-            const groupData = rawYasnoData[currentGroup];
-            if (!groupData) {
-                dot.style.backgroundColor = "var(--yellow)";
-                head.innerText = `Черга ${currentGroup} відсутня`;
-                detail.innerText = "Немає даних у базі YASNO";
-                bar.innerHTML = '';
-                container.innerHTML = '<span class="detail">Дані відсутні</span>';
-                return;
-            }
+                if (data.error) {
+                    dot.style.backgroundColor = "var(--yellow)";
+                    head.innerText = currentDay === 'tomorrow' ? "Графік на завтра формується" : "Графік очікується";
+                    detail.innerText = data.error;
+                    bar.innerHTML = '';
+                    container.innerHTML = '<span class="detail">Немає точного розкладу</span>';
+                    return;
+                }
 
-            const dayObj = groupData[currentDay];
-            if (!dayObj || dayObj.status !== "ScheduleApplies") {
-                dot.style.backgroundColor = "var(--yellow)";
-                head.innerText = currentDay === 'tomorrow' ? "Графік на завтра формується" : "Графік очікується";
-                detail.innerText = "YASNO ще не опублікувало точний розклад";
-                bar.innerHTML = '';
-                container.innerHTML = '<span class="detail">Очікуйте публікації від енергетиків</span>';
-                return;
-            }
+                const slots = data.slots || [];
+                const now = new Date();
+                const nowM = currentDay === 'today' ? (now.getHours() * 60 + now.getMinutes()) : -1;
 
-            const slots = dayObj.slots || [];
-            const now = new Date();
-            const nowM = currentDay === 'today' ? (now.getHours() * 60 + now.getMinutes()) : -1;
+                document.getElementById('update-label').innerText = `YASNO · ${now.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
 
-            document.getElementById('update-label').innerText = `YASNO · ${now.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'})}`;
+                if (currentDay === 'today') {
+                    const active = slots.find(s => isOutage(s) && nowM >= s.start && nowM < s.end);
+                    const next = slots.find(s => isOutage(s) && s.start > nowM);
 
-            if (currentDay === 'today') {
-                const active = slots.find(s => isOutage(s) && nowM >= s.start && nowM < s.end);
-                const next = slots.find(s => isOutage(s) && s.start > nowM);
-
-                if (active) {
-                    dot.style.backgroundColor = "var(--red)";
-                    head.innerText = "Світла немає";
-                    detail.innerText = `За графіком до ${hhmm(active.end)}`;
+                    if (active) {
+                        dot.style.backgroundColor = "var(--red)";
+                        head.innerText = "Світла немає";
+                        detail.innerText = `За графіком до ${hhmm(active.end)}`;
+                    } else {
+                        dot.style.backgroundColor = "var(--green)";
+                        head.innerText = "Світло є";
+                        detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
+                    }
                 } else {
                     dot.style.backgroundColor = "var(--green)";
-                    head.innerText = "Світло є";
-                    detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
+                    head.innerText = "Графік на завтра";
+                    detail.innerText = `Черга ${currentGroup}`;
                 }
-            } else {
-                dot.style.backgroundColor = "var(--green)";
-                head.innerText = "Графік на завтра";
-                detail.innerText = `Черга ${currentGroup}`;
-            }
 
-            // 24-годинна шкала
-            bar.innerHTML = '';
-            const curHour = currentDay === 'today' ? now.getHours() : -1;
+                bar.innerHTML = '';
+                const curHour = currentDay === 'today' ? now.getHours() : -1;
 
-            for (let h = 0; h < 24; h++) {
-                const seg = document.createElement('div');
-                seg.className = `timeline-seg ${h === curHour ? 'current' : ''}`;
-                const a = h * 60;
-                const b = a + 60;
+                for (let h = 0; h < 24; h++) {
+                    const seg = document.createElement('div');
+                    seg.className = `timeline-seg ${h === curHour ? 'current' : ''}`;
+                    const a = h * 60;
+                    const b = a + 60;
 
-                const match = slots.filter(s => s.start < b && s.end > a);
-                if (match.some(isOutage)) {
-                    seg.style.backgroundColor = "var(--red)";
-                } else if (match.some(isNotPlanned)) {
-                    seg.style.backgroundColor = "var(--green)";
+                    const match = slots.filter(s => s.start < b && s.end > a);
+                    if (match.some(isOutage)) {
+                        seg.style.backgroundColor = "var(--red)";
+                    } else if (match.some(isNotPlanned)) {
+                        seg.style.backgroundColor = "var(--green)";
+                    } else {
+                        seg.style.backgroundColor = "var(--yellow)";
+                    }
+                    bar.appendChild(seg);
+                }
+
+                const sorted = [...slots].filter(s => isOutage(s) || isNotPlanned(s)).sort((a, b) => a.start - b.start);
+                const intervals = [];
+                for (const s of sorted) {
+                    const off = isOutage(s);
+                    const last = intervals[intervals.length - 1];
+                    if (last && last.end === s.start && last.isOff === off) {
+                        last.end = s.end;
+                    } else {
+                        intervals.push({ start: s.start, end: s.end, isOff: off });
+                    }
+                }
+
+                const visible = currentDay === 'today' ? intervals.filter(i => i.end > nowM) : intervals;
+                container.innerHTML = '';
+
+                if (visible.length === 0) {
+                    container.innerHTML = '<span class="detail">Відключень за графіком немає</span>';
                 } else {
-                    seg.style.backgroundColor = "var(--yellow)";
+                    visible.forEach(i => {
+                        const row = document.createElement('div');
+                        row.className = 'period-row';
+                        row.innerHTML = `
+                            <div class="period-time">
+                                <span class="badge" style="background-color: ${i.isOff ? 'var(--red)' : 'var(--green)'}"></span>
+                                ${hhmm(i.start)}–${hhmm(i.end)}
+                            </div>
+                            <span class="detail">${i.isOff ? 'Світла немає' : 'Світло є за графіком'}</span>
+                        `;
+                        container.appendChild(row);
+                    });
                 }
-                bar.appendChild(seg);
-            }
-
-            // Інтервали
-            const sorted = [...slots]
-                .filter(s => isOutage(s) || isNotPlanned(s))
-                .sort((a, b) => a.start - b.start);
-
-            const intervals = [];
-            for (const s of sorted) {
-                const off = isOutage(s);
-                const last = intervals[intervals.length - 1];
-                if (last && last.end === s.start && last.isOff === off) {
-                    last.end = s.end;
-                } else {
-                    intervals.push({ start: s.start, end: s.end, isOff: off });
-                }
-            }
-
-            const visible = currentDay === 'today' ? intervals.filter(i => i.end > nowM) : intervals;
-            container.innerHTML = '';
-
-            if (visible.length === 0) {
-                container.innerHTML = '<span class="detail">Відключень за графіком немає</span>';
-            } else {
-                visible.forEach(i => {
-                    const row = document.createElement('div');
-                    row.className = 'period-row';
-                    row.innerHTML = `
-                        <div class="period-time">
-                            <span class="badge" style="background-color: ${i.isOff ? 'var(--red)' : 'var(--green)'}"></span>
-                            ${hhmm(i.start)}–${hhmm(i.end)}
-                        </div>
-                        <span class="detail">${i.isOff ? 'Світла немає' : 'Світло є за графіком'}</span>
-                    `;
-                    container.appendChild(row);
-                });
+            } catch (err) {
+                dot.style.backgroundColor = "var(--yellow)";
+                head.innerText = "Сервер Render прокидається...";
+                detail.innerText = "Натисніть кнопку «Оновити дані» через 10 секунд";
             }
         }
 
-        fetchAndRender();
+        fetchGroupsList().then(loadDashboard);
     </script>
 </body>
 </html>
