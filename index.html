@@ -131,7 +131,7 @@
             <span id="status-dot" class="badge"></span>
             <span id="headline-text">Завантаження...</span>
         </div>
-        <div id="detail-text" class="detail">З'єднання з сервером YASNO...</div>
+        <div id="detail-text" class="detail">З'єднання з сервером...</div>
         
         <div id="timeline-bar" class="timeline"></div>
         <div class="ticks">
@@ -150,8 +150,7 @@
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
 
-        const API = "https://app.yasno.ua/api/blackout-service/public/shutdowns/regions/25/dsos/902/planned-outages";
-        const QUEUE = "35.1";
+        const API = "https://svitlo-bot-ysac.onrender.com/schedule";
 
         function hhmm(m) {
             const h = Math.floor(m / 60);
@@ -163,14 +162,16 @@
             try {
                 const res = await fetch(API);
                 const data = await res.json();
-                const group = data[QUEUE];
 
-                if (!group || !group.today || !Array.isArray(group.today.slots)) {
-                    throw new Error("Не знайдено розклад черги");
+                if (data.error) {
+                    throw new Error(data.error);
                 }
 
-                const slots = group.today.slots;
-                const status = group.today.status;
+                const slots = data.slots;
+                if (!slots || !Array.isArray(slots)) {
+                    throw new Error("Немає даних по слотах");
+                }
+
                 const now = new Date();
                 const nowM = now.getHours() * 60 + now.getMinutes();
 
@@ -180,23 +181,17 @@
                 const head = document.getElementById('headline-text');
                 const detail = document.getElementById('detail-text');
 
-                if (status !== "ScheduleApplies") {
-                    dot.style.backgroundColor = "var(--yellow)";
-                    head.innerText = "Графік очікується";
-                    detail.innerText = "YASNO ще не підтвердив розклад";
-                } else {
-                    const active = slots.find(s => s.type === "definite" && nowM >= s.start && nowM < s.end);
-                    const next = slots.find(s => s.type === "definite" && s.start > nowM);
+                const active = slots.find(s => s.type === "definite" && nowM >= s.start && nowM < s.end);
+                const next = slots.find(s => s.type === "definite" && s.start > nowM);
 
-                    if (active) {
-                        dot.style.backgroundColor = "var(--red)";
-                        head.innerText = "Світла немає";
-                        detail.innerText = `За графіком до ${hhmm(active.end)}`;
-                    } else {
-                        dot.style.backgroundColor = "var(--green)";
-                        head.innerText = "Світло є";
-                        detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
-                    }
+                if (active) {
+                    dot.style.backgroundColor = "var(--red)";
+                    head.innerText = "Світла немає";
+                    detail.innerText = `За графіком до ${hhmm(active.end)}`;
+                } else {
+                    dot.style.backgroundColor = "var(--green)";
+                    head.innerText = "Світло є";
+                    detail.innerText = next ? `Відключення о ${hhmm(next.start)}` : "Відключень далі немає";
                 }
 
                 // Шкала 24 години
@@ -211,14 +206,12 @@
                     const b = a + 60;
 
                     const match = slots.filter(s => s.start < b && s.end > a);
-                    if (status === "ScheduleApplies") {
-                        if (match.some(s => s.type === "definite")) {
-                            seg.style.backgroundColor = "var(--red)";
-                        } else if (match.some(s => s.type === "notplanned")) {
-                            seg.style.backgroundColor = "var(--green)";
-                        } else {
-                            seg.style.backgroundColor = "var(--yellow)";
-                        }
+                    if (match.some(s => s.type === "definite")) {
+                        seg.style.backgroundColor = "var(--red)";
+                    } else if (match.some(s => s.type === "notplanned")) {
+                        seg.style.backgroundColor = "var(--green)";
+                    } else {
+                        seg.style.backgroundColor = "var(--yellow)";
                     }
                     bar.appendChild(seg);
                 }
