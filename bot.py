@@ -7,7 +7,6 @@ import threading
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -38,6 +37,7 @@ API_PORT = int(os.environ.get("PORT", "8080"))
 
 CACHE_SECONDS = 60
 REQUEST_TIMEOUT = 15
+ALERT_CHECK_SECONDS = 300
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,10 +50,16 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Після перезапуску сервісу вони скидаються.
 user_groups = {}
 
+# Підписки та попередні версії графіків скидаються після перезапуску Render.
+alert_subscribers = {}
+schedule_fingerprints = {}
+alert_lock = threading.Lock()
+
 # Кеш даних YASNO
 yasno_cache = {
     "timestamp": 0,
     "data": None,
+    "last_error": None,
 }
 
 cache_lock = threading.Lock()
@@ -97,6 +103,23 @@ def normalize_yasno_response(data):
     return data
 
 
+def get_yasno_cache_metadata():
+    with cache_lock:
+        timestamp = yasno_cache["timestamp"]
+        has_data = yasno_cache["data"] is not None
+        last_error = yasno_cache["last_error"]
+
+    return {
+        "dataFetchedAt": (
+            datetime.fromtimestamp(timestamp, KYIV_TZ).isoformat(timespec="seconds")
+            if timestamp
+            else None
+        ),
+        "dataIsStale": bool(has_data and last_error),
+        "refreshError": bool(last_error),
+    }
+
+
 def fetch_yasno_data(force_refresh=False):
     """Завантажує графік YASNO з кешуванням."""
     now = time.time()
@@ -127,36 +150,31 @@ def fetch_yasno_data(force_refresh=False):
             )
 
         data = normalize_yasno_response(raw_data)
-
-        if not isinstance(data, dict):
-            raise ValueError("Неочікуваний формат відповіді YASNO")
+        has_schedule = isinstance(data, dict) and any(
+            isinstance(value, dict)
+            and (
+                isinstance(value.get("today"), dict)
+                or isinstance(value.get("tomorrow"), dict)
+            )
+            for value in data.values()
+        )
+        if not has_schedule:
+            raise ValueError("YASNO повернув відповідь без даних графіка")
 
         with cache_lock:
             yasno_cache["data"] = data
             yasno_cache["timestamp"] = time.time()
+            yasno_cache["last_error"] = None
 
         return data
 
-    except (
-        HTTPError,
-        URLError,
-        TimeoutError,
-        json.JSONDecodeError,
-        ValueError,
-    ) as error:
+    except Exception as error:
         logging.warning("Помилка отримання даних YASNO: %s", error)
 
         with cache_lock:
-            # Повертаємо кеш, якщо він є, навіть якщо він застарів.
-            if yasno_cache["data"] is not None:
-                return yasno_cache["data"]
-
-        return None
-
-    except Exception:
-        logging.exception("Невідома помилка під час запиту YASNO")
-        return None
-
+            yasno_cache["last_error"] = str(error)
+            # Кеш повертається, але API позначить його як застарілий.
+            return yasno_cache["data"]
 
 def get_groups(data=None):
     """Повертає черги, які реально є у відповіді YASNO."""
@@ -211,7 +229,7 @@ def get_group_day_data(group, day, data=None):
     return day_data
 
 
-def get_schedule_payload(group, day):
+def get_schedule_payload(group, day, force_refresh=False):
     """
     Формує формат відповіді для HTML:
     {
@@ -223,11 +241,13 @@ def get_schedule_payload(group, day):
         "slots": [...]
     }
     """
-    data = fetch_yasno_data()
+    data = fetch_yasno_data(force_refresh=force_refresh)
+    cache_metadata = get_yasno_cache_metadata()
 
     if data is None:
         return {
             "error": "Не вдалося отримати дані YASNO",
+            **cache_metadata,
         }, 502
 
     group_data = data.get(group)
@@ -276,6 +296,7 @@ def get_schedule_payload(group, day):
         "date": day_data.get("date"),
         "status": day_data.get("status"),
         "updatedOn": group_data.get("updatedOn"),
+        **cache_metadata,
         "slots": valid_slots,
     }, 200
 
@@ -310,9 +331,10 @@ def format_schedule_for_telegram(group, day):
 
     if isinstance(date, str) and date != "Дата не вказана":
         try:
-            date = datetime.fromisoformat(
-                date.replace("Z", "+00:00")
-            ).strftime("%d.%m.%Y")
+            parsed_date = datetime.fromisoformat(date.replace("Z", "+00:00"))
+            if parsed_date.tzinfo is not None:
+                parsed_date = parsed_date.astimezone(KYIV_TZ)
+            date = parsed_date.strftime("%d.%m.%Y")
         except ValueError:
             pass
 
@@ -356,6 +378,115 @@ def format_schedule_for_telegram(group, day):
 # =========================================================
 # ECOFLOW — ПОКИ ЗАГЛУШКА
 # =========================================================
+
+def format_kyiv_timestamp(value):
+    if not value:
+        return "час невідомий"
+
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=KYIV_TZ)
+        return parsed.astimezone(KYIV_TZ).strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return str(value)
+
+
+def schedule_fingerprint(group_data, day):
+    day_data = group_data.get(day) if isinstance(group_data, dict) else None
+    if not isinstance(day_data, dict):
+        return None
+
+    slots = day_data.get("slots")
+    if not isinstance(slots, list):
+        return None
+
+    normalized_slots = []
+    for slot in slots:
+        if not isinstance(slot, dict):
+            continue
+        start = slot.get("start")
+        end = slot.get("end")
+        if (
+            isinstance(start, (int, float))
+            and not isinstance(start, bool)
+            and isinstance(end, (int, float))
+            and not isinstance(end, bool)
+            and 0 <= start < end <= 1440
+        ):
+            slot_type = str(slot.get("type", "")).lower()
+            slot_type = slot_type.replace("_", "").replace("-", "").replace(" ", "")
+            normalized_slots.append((start, end, slot_type))
+
+    normalized_slots.sort()
+    signature = {
+        "date": day_data.get("date"),
+        "status": day_data.get("status"),
+        "slots": normalized_slots,
+    }
+    return json.dumps(signature, ensure_ascii=False, sort_keys=True)
+
+
+def set_schedule_baseline(group, data):
+    with alert_lock:
+        group_data = data.get(group) if isinstance(data, dict) else None
+        for day in ("today", "tomorrow"):
+            key = (group, day)
+            fingerprint = schedule_fingerprint(group_data, day)
+            if fingerprint is None:
+                schedule_fingerprints.pop(key, None)
+            else:
+                schedule_fingerprints[key] = fingerprint
+
+
+def clear_schedule_baseline(group):
+    with alert_lock:
+        for day in ("today", "tomorrow"):
+            schedule_fingerprints.pop((group, day), None)
+
+
+def check_schedule_changes():
+    data = fetch_yasno_data(force_refresh=True)
+    if data is None or get_yasno_cache_metadata()["dataIsStale"]:
+        return
+
+    changes = []
+    with alert_lock:
+        for group in get_groups(data):
+            group_data = data.get(group)
+            for day in ("today", "tomorrow"):
+                fingerprint = schedule_fingerprint(group_data, day)
+                if fingerprint is None:
+                    continue
+                key = (group, day)
+                previous = schedule_fingerprints.get(key)
+                if previous is not None and previous != fingerprint:
+                    changes.append((group, day))
+                schedule_fingerprints[key] = fingerprint
+        subscribers = list(alert_subscribers.items())
+
+    for group, day in changes:
+        message_text = "🔔 Графік YASNO змінився.\n\n" + format_schedule_for_telegram(group, day)
+        target_chats = {
+            chat_id
+            for user_id, chat_id in subscribers
+            if get_user_group(user_id) == group
+        }
+        for chat_id in target_chats:
+            try:
+                bot.send_message(chat_id, message_text)
+            except Exception:
+                logging.exception("Не вдалося надіслати сповіщення про зміну графіка")
+
+
+def run_schedule_alert_monitor():
+    while True:
+        try:
+            check_schedule_changes()
+        except Exception:
+            logging.exception("Помилка перевірки змін графіка")
+        time.sleep(ALERT_CHECK_SECONDS)
+
 
 def get_ecoflow_status():
     return {
@@ -406,7 +537,9 @@ def start_command(message):
             "Я допомагаю переглядати графік відключень YASNO.\n\n"
             f"Твоя черга: {group}\n\n"
             "Обери дію в меню або введи номер черги, "
-            "наприклад 1.1."
+            "наприклад 1.1.\n\n"
+            "Сповіщення про зміни графіка: /subscribe — увімкнути, "
+            "/unsubscribe — вимкнути, /alerts — перевірити стан."
         ),
         reply_markup=main_keyboard(),
     )
@@ -423,13 +556,81 @@ def group_command(message):
 
 @bot.message_handler(commands=["refresh"])
 def refresh_command(message):
-    fetch_yasno_data(force_refresh=True)
+    data = fetch_yasno_data(force_refresh=True)
+    cache_metadata = get_yasno_cache_metadata()
+
+    if data is None:
+        response = "Не вдалося оновити дані YASNO: актуального кешу немає."
+    elif cache_metadata["dataIsStale"]:
+        fetched_at = format_kyiv_timestamp(cache_metadata["dataFetchedAt"])
+        response = (
+            "YASNO зараз недоступний. Показую застарілий кеш, "
+            f"отриманий {fetched_at} за київським часом."
+        )
+    else:
+        fetched_at = format_kyiv_timestamp(cache_metadata["dataFetchedAt"])
+        response = f"Дані YASNO оновлено {fetched_at} за київським часом."
 
     bot.send_message(
         message.chat.id,
-        "Спробував оновити дані YASNO.",
+        response,
         reply_markup=main_keyboard(),
     )
+
+
+@bot.message_handler(commands=["subscribe"])
+def subscribe_command(message):
+    user_id = message.from_user.id
+    group = get_user_group(user_id)
+    data = fetch_yasno_data(force_refresh=True)
+    cache_metadata = get_yasno_cache_metadata()
+
+    if data is not None and not cache_metadata["dataIsStale"]:
+        set_schedule_baseline(group, data)
+    else:
+        clear_schedule_baseline(group)
+
+    with alert_lock:
+        alert_subscribers[user_id] = message.chat.id
+
+    bot.send_message(
+        message.chat.id,
+        (
+            f"🔔 Сповіщення увімкнено для черги {group}. "
+            "Напишу, коли графік YASNO на сьогодні або завтра зміниться. "
+            "Після перезапуску бота підписку потрібно буде ввімкнути знову."
+        ),
+        reply_markup=main_keyboard(),
+    )
+
+
+@bot.message_handler(commands=["unsubscribe"])
+def unsubscribe_command(message):
+    with alert_lock:
+        alert_subscribers.pop(message.from_user.id, None)
+
+    bot.send_message(
+        message.chat.id,
+        "🔕 Сповіщення вимкнено.",
+        reply_markup=main_keyboard(),
+    )
+
+
+@bot.message_handler(commands=["alerts"])
+def alerts_command(message):
+    user_id = message.from_user.id
+    with alert_lock:
+        is_subscribed = user_id in alert_subscribers
+
+    if is_subscribed:
+        text = (
+            f"🔔 Сповіщення увімкнено для черги {get_user_group(user_id)}. "
+            "Для вимкнення: /unsubscribe."
+        )
+    else:
+        text = "🔕 Сповіщення вимкнено. Для підписки: /subscribe."
+
+    bot.send_message(message.chat.id, text, reply_markup=main_keyboard())
 
 
 @bot.message_handler(
@@ -588,6 +789,9 @@ class APIHandler(BaseHTTPRequestHandler):
         if parsed.path == "/schedule":
             group = params.get("group", [DEFAULT_GROUP])[0]
             day = params.get("day", ["today"])[0]
+            force_refresh = params.get("refresh", ["0"])[0].lower() in (
+                "1", "true", "yes"
+            )
 
             if day not in ("today", "tomorrow"):
                 self.send_json(400, {
@@ -595,7 +799,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 })
                 return
 
-            payload, status_code = get_schedule_payload(group, day)
+            payload, status_code = get_schedule_payload(
+                group,
+                day,
+                force_refresh=force_refresh,
+            )
             self.send_json(status_code, payload)
             return
 
@@ -639,6 +847,12 @@ if __name__ == "__main__":
         daemon=True,
     )
     server_thread.start()
+
+    alert_thread = threading.Thread(
+        target=run_schedule_alert_monitor,
+        daemon=True,
+    )
+    alert_thread.start()
 
     logging.info("Telegram-бот запускається")
 

@@ -260,6 +260,17 @@
         font-size: 11px;
     }
 
+    .data-warning {
+        padding: 12px 14px;
+        margin: 0 0 14px;
+        border: 1px solid rgba(246,200,95,.35);
+        border-radius: 14px;
+        background: rgba(246,200,95,.09);
+        color: var(--yellow);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
     .btn-refresh {
         display: block;
         width: 100%;
@@ -355,6 +366,9 @@
 
     </div>
 
+    <div id="data-warning" class="data-warning" role="status"
+         aria-live="polite" hidden></div>
+
     <div class="card">
 
         <div class="headline">
@@ -364,6 +378,8 @@
             <span id="headline-text">Завантаження...</span>
 
         </div>
+
+        <div id="schedule-date" class="detail"></div>
 
         <div id="detail-text" class="detail">Отримання графіка...</div>
 
@@ -397,7 +413,7 @@
 
     <button id="refresh-button" class="btn-refresh"
 
-            onclick="loadDashboard()">↻ Оновити дані</button>
+            onclick="loadDashboard({ forceRefresh: true })">↻ Оновити дані</button>
 
     <script>
 
@@ -465,19 +481,94 @@
 
         }
 
-        function kyivTimeLabel() {
+        function formatKyivTimestamp(value) {
+
+            if (!value) return "час невідомий";
+
+            const date = new Date(value);
+
+            if (Number.isNaN(date.getTime())) return String(value);
 
             return new Intl.DateTimeFormat("uk-UA", {
-
                 timeZone: "Europe/Kyiv",
+                dateStyle: "short",
+                timeStyle: "short"
+            }).format(date);
 
-                hour: "2-digit",
+        }
 
-                minute: "2-digit",
+        function formatScheduleDate(value) {
 
-                hourCycle: "h23"
+            if (!value) return "Дата графіка не вказана";
 
-            }).format(new Date());
+            const dateOnly = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+            const date = dateOnly
+                ? new Date(Date.UTC(
+                    Number(dateOnly[1]),
+                    Number(dateOnly[2]) - 1,
+                    Number(dateOnly[3]),
+                    12
+                ))
+                : new Date(value);
+
+            if (Number.isNaN(date.getTime())) return String(value);
+
+            return new Intl.DateTimeFormat("uk-UA", {
+                timeZone: "Europe/Kyiv",
+                day: "numeric",
+                month: "long",
+                year: "numeric"
+            }).format(date);
+
+        }
+
+        function scheduleStatusLabel(status) {
+
+            const labels = {
+                ScheduleApplies: "Графік відключень діє",
+                WaitingForSchedule: "Графік очікується",
+                NoShutdowns: "Планових відключень немає",
+                PlannedShutdowns: "Є планові відключення",
+                EmergencyShutdowns: "Аварійні відключення"
+            };
+
+            return labels[status] || "Статус уточнюється";
+
+        }
+
+        function updateScheduleDate(data) {
+
+            const dayLabel = currentDay === "today" ? "Сьогодні" : "Завтра";
+
+            $("schedule-date").textContent =
+                dayLabel + " · " + formatScheduleDate(data.date) +
+                " · Черга " + currentGroup;
+
+        }
+
+        function updateDataState(data) {
+
+            const fetchedAt = formatKyivTimestamp(data.dataFetchedAt);
+            const sourceUpdatedAt = data.updatedOn
+                ? formatKyivTimestamp(data.updatedOn)
+                : null;
+
+            $("update-label").textContent = data.dataFetchedAt
+                ? "YASNO · дані отримано " + fetchedAt + " за Києвом"
+                : "YASNO · час отримання невідомий";
+
+            if (sourceUpdatedAt) {
+                $("update-label").textContent +=
+                    " · у YASNO оновлено " + sourceUpdatedAt;
+            }
+
+            const warning = $("data-warning");
+            warning.hidden = !data.dataIsStale;
+            warning.textContent = data.dataIsStale
+                ? "Не вдалося оновити дані. Показано кеш від " +
+                    fetchedAt + " за київським часом."
+                : "";
 
         }
 
@@ -530,34 +621,33 @@
         function setError(message) {
 
             $("status-dot").style.backgroundColor = "var(--yellow)";
-
             $("headline-text").innerText = "Немає актуальних даних";
-
+            $("schedule-date").textContent = "";
             $("detail-text").innerText = message;
-
             $("timeline-bar").replaceChildren();
-
             $("intervals-container").innerText = message;
+            $("update-label").textContent = "YASNO · помилка оновлення";
+
+            const warning = $("data-warning");
+            warning.hidden = false;
+            warning.textContent = message;
 
         }
 
         async function apiGet(path) {
 
             const response = await fetch(
-
                 `${SERVER}${path}`,
-
                 { cache: "no-store" }
-
             );
 
+            const data = await response.json().catch(() => ({}));
+
             if (!response.ok) {
-
-                throw new Error(`Помилка сервера: HTTP ${response.status}`);
-
+                throw new Error(data.error || "Помилка сервера: HTTP " + response.status);
             }
 
-            return response.json();
+            return data;
 
         }
 
@@ -825,22 +915,24 @@
 
         }
 
-        async function loadDashboard() {
+        async function loadDashboard({ forceRefresh = false } = {}) {
 
             if (loading) return;
 
             loading = true;
 
-            $("refresh-button").disabled = true;
+            const refreshButton = $("refresh-button");
+
+            refreshButton.disabled = true;
+
+            if (forceRefresh) refreshButton.textContent = "Оновлюю дані…";
 
             try {
 
                 const params = new URLSearchParams({
-
                     group: currentGroup,
-
-                    day: currentDay
-
+                    day: currentDay,
+                    refresh: forceRefresh ? "1" : "0"
                 });
 
                 const data = await apiGet(`/schedule?${params.toString()}`);
@@ -865,9 +957,9 @@
 
                 const nowMinutes = hour * 60 + minute;
 
-                $("update-label").textContent =
+                updateScheduleDate(data);
 
-                    `YASNO · ${kyivTimeLabel()}`;
+                updateDataState(data);
 
                 const hasSchedule = data.status &&
 
@@ -941,15 +1033,16 @@
 
                 } else {
 
-                    $("status-dot").style.backgroundColor = "var(--yellow)";
+                    $("status-dot").style.backgroundColor =
+                        data.status === "NoShutdowns" ? "var(--green)" : "var(--yellow)";
 
-                    $("headline-text").textContent = "Графік на завтра";
+                    $("headline-text").textContent =
+                        data.status === "NoShutdowns"
+                            ? "Планових відключень немає"
+                            : "Графік на завтра";
 
                     $("detail-text").textContent =
-
-                        `Черга ${currentGroup}` +
-
-                        (data.status ? ` · ${data.status}` : "");
+                        "Черга " + currentGroup + " · " + scheduleStatusLabel(data.status);
 
                 }
 
@@ -981,7 +1074,9 @@
 
                 loading = false;
 
-                $("refresh-button").disabled = false;
+                refreshButton.disabled = false;
+
+                refreshButton.textContent = "↻ Оновити дані";
 
             }
 
@@ -995,7 +1090,7 @@
 
             if (refreshTimer) clearInterval(refreshTimer);
 
-            refreshTimer = setInterval(loadDashboard, REFRESH_MS);
+            refreshTimer = setInterval(() => loadDashboard(), REFRESH_MS);
 
         }
 
