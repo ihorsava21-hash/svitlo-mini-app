@@ -145,39 +145,77 @@
     }
 
     .tabs {
-        display: flex;
-        background: rgba(245,245,245,.045);
-        backdrop-filter: blur(20px) saturate(160%);
-        -webkit-backdrop-filter: blur(20px) saturate(160%);
-        border-radius: 22px;
-        padding: 4px;
-        gap: 4px;
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 5px;
+        gap: 0;
         margin-bottom: 14px;
         border: 1px solid var(--glass-edge);
-        box-shadow: inset 0 1px 0 rgba(245,245,245,.1);
+        border-radius: 24px;
+        background: rgba(43,45,66,.14);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.12);
+        backdrop-filter: blur(24px) saturate(175%);
+        -webkit-backdrop-filter: blur(24px) saturate(175%);
+        overflow: hidden;
+        isolation: isolate;
     }
 
+    .tab-indicator {
+        position: absolute;
+        z-index: 0;
+        top: 5px;
+        bottom: 5px;
+        left: 5px;
+        width: calc((100% - 10px) / 2);
+        border: 1px solid rgba(245,245,245,.26);
+        border-radius: 19px;
+        background: linear-gradient(145deg, rgba(245,245,245,.28), rgba(245,245,245,.09));
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.34),
+                    inset 0 -1px 0 rgba(18,19,24,.08),
+                    0 6px 16px rgba(18,19,24,.14);
+        pointer-events: none;
+        transform: translateX(0);
+        transition: transform .34s cubic-bezier(.2,.8,.2,1);
+        will-change: transform;
+    }
+
+    .tab-indicator::after {
+        content: "";
+        position: absolute;
+        inset: 1px;
+        border-radius: inherit;
+        background: linear-gradient(135deg, rgba(245,245,245,.16), transparent 62%);
+    }
+
+    .tabs[data-day="tomorrow"] .tab-indicator { transform: translateX(100%); }
+
+    .status-card, .intervals-card { touch-action: pan-y; }
+
     .tab-btn {
-        flex: 1;
-        min-height: 48px;
-        padding: 13px 12px;
-        font-size: 15px;
-        font-weight: 650;
-        border-radius: 16px;
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        min-width: 0;
+        min-height: 50px;
+        padding: 12px;
         border: 0;
+        border-radius: 19px;
         background: transparent;
         color: var(--muted-color);
-        transition: background .2s, color .2s, transform .15s;
+        font-size: 15px;
+        font-weight: 650;
         cursor: pointer;
+        touch-action: pan-y;
+        transition: color .2s, transform .15s, font-weight .2s;
     }
 
     .tab-btn.active {
-        background: var(--active-tab);
-        color: var(--active-tab-text);
+        background: transparent;
+        color: var(--text-color);
         font-weight: 750;
-        box-shadow: inset 0 1px 0 rgba(245,245,245,.2), 0 3px 12px rgba(18,19,24,.12);
+        box-shadow: none;
     }
-
     .card {
         background: var(--panel-bg);
         border: 1px solid var(--glass-edge);
@@ -547,18 +585,15 @@
         </label>
         <button id="add-home-screen" class="setting-action" type="button" hidden>Додати ярлик на головний екран</button>
     </section>
-    <div class="tabs">
-
-        <button id="tab-today" class="tab-btn active"
-
+    <div class="tabs" id="day-switch" role="tablist" aria-label="Вибір дня" data-day="today">
+        <span class="tab-indicator" aria-hidden="true"></span>
+        <button id="tab-today" class="tab-btn active" type="button" role="tab"
+                aria-selected="true" aria-controls="status-card" tabindex="0"
                 onclick="switchDay('today')">Сьогодні</button>
-
-        <button id="tab-tomorrow" class="tab-btn"
-
+        <button id="tab-tomorrow" class="tab-btn" type="button" role="tab"
+                aria-selected="false" aria-controls="status-card" tabindex="-1"
                 onclick="switchDay('tomorrow')">Завтра</button>
-
     </div>
-
     <div id="data-warning" class="data-warning" role="status"
          aria-live="polite" hidden></div>
 
@@ -595,7 +630,7 @@
 
     </div>
 
-    <div class="card">
+    <div class="card intervals-card" id="intervals-card">
 
         <div style="font-size:12px;font-weight:600;color:var(--muted-color);margin-bottom:8px">
 
@@ -1077,19 +1112,49 @@
         }
 
         function switchDay(day) {
+            if ((day !== "today" && day !== "tomorrow") || currentDay === day) return;
 
             clearCountdown();
-
             currentDay = day;
-
-            $("tab-today").classList.toggle("active", day === "today");
-
-            $("tab-tomorrow").classList.toggle("active", day === "tomorrow");
-
+            const isToday = day === "today";
+            $("day-switch").dataset.day = day;
+            $("tab-today").classList.toggle("active", isToday);
+            $("tab-tomorrow").classList.toggle("active", !isToday);
+            $("tab-today").setAttribute("aria-selected", String(isToday));
+            $("tab-tomorrow").setAttribute("aria-selected", String(!isToday));
+            $("tab-today").tabIndex = isToday ? 0 : -1;
+            $("tab-tomorrow").tabIndex = isToday ? -1 : 0;
             loadDashboard();
-
         }
 
+        $("day-switch").addEventListener("keydown", event => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            event.preventDefault();
+            const day = event.key === "ArrowRight" ? "tomorrow" : "today";
+            switchDay(day);
+            $(day === "today" ? "tab-today" : "tab-tomorrow").focus();
+        });
+
+        function enableDaySwipe(zone) {
+            let start = null;
+            zone.addEventListener("pointerdown", event => {
+                if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+                start = { x: event.clientX, y: event.clientY };
+                try { zone.setPointerCapture(event.pointerId); } catch {}
+            }, { passive: true });
+            zone.addEventListener("pointerup", event => {
+                if (!start) return;
+                const dx = event.clientX - start.x;
+                const dy = event.clientY - start.y;
+                start = null;
+                if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+                switchDay(dx < 0 ? "tomorrow" : "today");
+            }, { passive: true });
+            zone.addEventListener("pointercancel", () => { start = null; }, { passive: true });
+        }
+
+        enableDaySwipe($("status-card"));
+        enableDaySwipe($("intervals-card"));
         $("group-select").addEventListener("change", event => {
 
             clearCountdown();
@@ -1471,7 +1536,6 @@
             if (!countdownTimer) {
                 countdownTimer = setInterval(renderCountdown, 1000);
             }
-
         }
 
         init();
