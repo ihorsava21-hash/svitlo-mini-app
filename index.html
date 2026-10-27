@@ -177,7 +177,7 @@
                     0 6px 16px rgba(18,19,24,.14);
         pointer-events: none;
         transform: translateX(0);
-        transition: transform .48s cubic-bezier(.22,1,.36,1);
+        transition: none;
         will-change: transform;
     }
 
@@ -1154,45 +1154,6 @@
             $(day === "today" ? "tab-today" : "tab-tomorrow").focus();
         });
 
-        function enableDaySwipe(zone) {
-            let start = null;
-            let lastTouchAt = 0;
-
-            const finishSwipe = (dx, dy) => {
-                if (Math.abs(dx) < 36 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-                switchDay(dx < 0 ? "tomorrow" : "today");
-            };
-
-            zone.addEventListener("touchstart", event => {
-                if (event.touches.length !== 1) return;
-                const touch = event.touches[0];
-                start = { x: touch.clientX, y: touch.clientY };
-                lastTouchAt = Date.now();
-            }, { passive: true });
-            zone.addEventListener("touchend", event => {
-                if (!start) return;
-                const touch = event.changedTouches[0];
-                finishSwipe(touch.clientX - start.x, touch.clientY - start.y);
-                start = null;
-                lastTouchAt = Date.now();
-            }, { passive: true });
-            zone.addEventListener("touchcancel", () => { start = null; }, { passive: true });
-
-            zone.addEventListener("pointerdown", event => {
-                if (Date.now() - lastTouchAt < 500 || event.pointerType === "mouse") return;
-                start = { x: event.clientX, y: event.clientY };
-            }, { passive: true });
-            zone.addEventListener("pointerup", event => {
-                if (!start || Date.now() - lastTouchAt < 500) return;
-                finishSwipe(event.clientX - start.x, event.clientY - start.y);
-                start = null;
-            }, { passive: true });
-            zone.addEventListener("pointercancel", () => { start = null; }, { passive: true });
-        }
-
-        enableDaySwipe($("day-switch"));
-        enableDaySwipe($("status-card"));
-        enableDaySwipe($("intervals-card"));
         $("group-select").addEventListener("change", event => {
 
             clearCountdown();
