@@ -10,7 +10,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-    <meta name="theme-color" content="#17191D">
+    <meta name="theme-color" content="#121318">
 
     <title>POWER / KYIV</title>
 
@@ -20,35 +20,47 @@
 <style>
     :root {
         color-scheme: dark;
-        --bg-color: #0b0d12;
-        --panel-bg: rgba(28, 31, 39, .88);
-        --text-color: #f5f6fa;
-        --muted-color: #9da4b2;
-        --line-color: rgba(255,255,255,.085);
-        --green: #55d89a;
-        --red: #ff6b72;
-        --yellow: #f6c85f;
-        --empty: #343945;
-        --active-tab: #3b82f6;
-        --accent: #5b9cff;
-        --shadow: 0 12px 32px rgba(0,0,0,.18);
+        --bg-color: #121318;
+        --panel-bg: rgba(43,45,66,.72);
+        --text-color: #F5F5F5;
+        --muted-color: rgba(245,245,245,.76);
+        --line-color: rgba(245,245,245,.16);
+        --glass-edge: rgba(245,245,245,.28);
+        --ambient-lime: rgba(198,255,0,.18);
+        --ambient-red: rgba(255,61,87,.06);
+        --ambient-surface: rgba(43,45,66,.55);
+        --green: #C6FF00;
+        --outage: #FF3D57;
+        --yellow: #F5F5F5;
+        --warning-text: #F5F5F5;
+        --empty: #2B2D42;
+        --active-tab: #C6FF00;
+        --active-tab-text: #121318;
+        --accent: #F5F5F5;
+        --shadow: 0 16px 42px rgba(18,19,24,.26);
     }
 
     @media (prefers-color-scheme: light) {
         :root {
             color-scheme: light;
-            --bg-color: #f2f4f8;
-            --panel-bg: rgba(255,255,255,.9);
-            --text-color: #171a22;
-            --muted-color: #737b8b;
-            --line-color: rgba(22,29,44,.09);
-            --green: #159b63;
-            --red: #e54855;
-            --yellow: #d99a16;
-            --empty: #e1e5ec;
-            --active-tab: #fff;
-            --accent: #1769e0;
-            --shadow: 0 8px 24px rgba(24,39,75,.07);
+            --bg-color: #F5F5F5;
+            --panel-bg: rgba(43,45,66,.08);
+            --text-color: #121318;
+            --muted-color: #2B2D42;
+            --line-color: rgba(18,19,24,.12);
+            --glass-edge: rgba(43,45,66,.2);
+            --ambient-lime: rgba(198,255,0,.16);
+            --ambient-red: rgba(255,61,87,.08);
+            --ambient-surface: rgba(43,45,66,.06);
+            --green: #C6FF00;
+            --outage: #FF3D57;
+            --yellow: #2B2D42;
+            --warning-text: #121318;
+            --empty: rgba(18,19,24,.12);
+            --active-tab: #2B2D42;
+            --active-tab-text: #F5F5F5;
+            --accent: #FF3D57;
+            --shadow: 0 8px 24px rgba(18,19,24,.07);
         }
     }
 
@@ -64,12 +76,11 @@
         font-family: -apple-system, BlinkMacSystemFont,
             "SF Pro Display", "Segoe UI", Roboto, sans-serif;
         background:
-            radial-gradient(
-                ellipse at 90% -10%,
-                rgba(54,112,220,.15),
-                transparent 42%
-            ),
+            radial-gradient(ellipse at 88% 2%, var(--ambient-lime), transparent 38%),
+            radial-gradient(ellipse at 6% 44%, var(--ambient-red), transparent 34%),
+            radial-gradient(ellipse at 84% 88%, var(--ambient-surface), transparent 36%),
             var(--bg-color);
+        background-attachment: fixed;
         color: var(--text-color);
         margin: 0;
         padding: max(20px, env(safe-area-inset-top))
@@ -95,7 +106,7 @@
         padding: 4px 2px;
     }
 
-    .header h1 {
+.header h1 {
         margin: 0 0 5px;
         font-size: 18px;
         letter-spacing: -.045em;
@@ -113,14 +124,33 @@
         -webkit-appearance: none;
         background-color: var(--panel-bg);
         color: var(--text-color);
-        border: 1px solid var(--line-color);
-        border-radius: 14px;
+        border: 1px solid var(--glass-edge);
+        border-radius: 18px;
         padding: 11px 30px 11px 13px;
         font-size: 13px;
         font-weight: 650;
         max-width: 155px;
         outline: none;
-        box-shadow: var(--shadow);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.1), var(--shadow);
+        backdrop-filter: blur(18px) saturate(155%);
+        -webkit-backdrop-filter: blur(18px) saturate(155%);
+        background-image:
+            linear-gradient(45deg, transparent 50%, var(--muted-color) 50%),
+            linear-gradient(135deg, var(--muted-color) 50%, transparent 50%);
+        background-position:
+            calc(100% - 15px) 16px,
+            calc(100% - 10px) 16px;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+    }
+        padding: 11px 30px 11px 13px;
+        font-size: 13px;
+        font-weight: 650;
+        max-width: 155px;
+        outline: none;
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.1), var(--shadow);
+        backdrop-filter: blur(18px) saturate(155%);
+        -webkit-backdrop-filter: blur(18px) saturate(155%);
         background-image:
             linear-gradient(45deg, transparent 50%, var(--muted-color) 50%),
             linear-gradient(135deg, var(--muted-color) 50%, transparent 50%);
@@ -133,12 +163,21 @@
 
     .tabs {
         display: flex;
-        background: rgba(128,136,151,.12);
-        border-radius: 16px;
+        background: rgba(245,245,245,.045);
+        backdrop-filter: blur(20px) saturate(160%);
+        -webkit-backdrop-filter: blur(20px) saturate(160%);
+        border-radius: 22px;
         padding: 4px;
         gap: 4px;
         margin-bottom: 14px;
-        border: 1px solid var(--line-color);
+        border: 1px solid var(--glass-edge);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.1);
+    }
+        padding: 4px;
+        gap: 4px;
+        margin-bottom: 14px;
+        border: 1px solid var(--glass-edge);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.1);
     }
 
     .tab-btn {
@@ -146,7 +185,13 @@
         padding: 12px 8px;
         font-size: 14px;
         font-weight: 650;
-        border-radius: 12px;
+        border-radius: 16px;
+        border: 0;
+        background: transparent;
+        color: var(--muted-color);
+        transition: background .2s, color .2s, transform .15s;
+        cursor: pointer;
+    }
         border: 0;
         background: transparent;
         color: var(--muted-color);
@@ -156,21 +201,62 @@
 
     .tab-btn.active {
         background: var(--active-tab);
-        color: var(--text-color);
-        box-shadow: 0 2px 8px rgba(0,0,0,.08);
+        color: var(--active-tab-text);
+        font-weight: 750;
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.2), 0 3px 12px rgba(18,19,24,.12);
     }
 
     .card {
         background: var(--panel-bg);
-        border: 1px solid var(--line-color);
-        border-radius: 22px;
+        border: 1px solid var(--glass-edge);
+        border-radius: 28px;
         padding: 19px;
         margin-bottom: 14px;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.12), var(--shadow);
+        backdrop-filter: blur(26px) saturate(165%);
+        -webkit-backdrop-filter: blur(26px) saturate(165%);
+    }
+        padding: 19px;
+        margin-bottom: 14px;
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.12), var(--shadow);
+        backdrop-filter: blur(26px) saturate(165%);
+        -webkit-backdrop-filter: blur(26px) saturate(165%);
     }
 
+    .status-card { padding: 22px; }
+    .status-card[data-state="on"] .headline { color: var(--text-color); }
+    .status-card[data-state="off"] .headline { color: var(--text-color); }
+    .status-card[data-state="unknown"] .headline { color: var(--text-color); }
+    .status-card #detail-text { padding-left: 19px; font-size: 14px; }
+    .countdown {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        width: fit-content;
+        max-width: 100%;
+        margin: 11px 0 0 19px;
+        padding: 9px 12px;
+        border: 1px solid var(--glass-edge);
+        border-radius: 18px;
+        background: var(--panel-bg);
+        color: var(--text-color);
+        font-size: 13px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.35;
+        backdrop-filter: blur(18px) saturate(150%);
+        -webkit-backdrop-filter: blur(18px) saturate(150%);
+    }
+    .countdown::before {
+        content: "";
+        flex: 0 0 8px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--text-color);
+    }
+    .countdown[data-state="off"]::before { background: var(--outage); }
+    .countdown[data-state="on"]::before { background: var(--green); }
     .headline {
         font-size: 19px;
         font-weight: 750;
@@ -188,7 +274,7 @@
         height: 9px;
         border-radius: 50%;
         background: var(--yellow);
-        box-shadow: 0 0 0 4px rgba(246,200,95,.15);
+        box-shadow: 0 0 0 4px rgba(245,245,245,.12);
     }
 
     .headline .badge {
@@ -206,10 +292,13 @@
         margin: 20px 0 9px;
     }
 
+    .timeline-legend { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:14px; color:var(--muted-color); font-size:11px; }
+    .legend-item { display:inline-flex; align-items:center; gap:7px; }
+    .legend-swatch { width:8px; height:8px; border-radius:50%; }
     .timeline-seg {
         flex: 1;
         min-width: 0;
-        border-radius: 4px;
+        border-radius: 999px;
         background: var(--empty);
         transition: opacity .2s;
     }
@@ -221,22 +310,48 @@
     }
 
     .ticks {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: repeat(9, minmax(0, 1fr));
         font-size: 10px;
         font-weight: 600;
         color: var(--muted-color);
-        margin-bottom: 2px;
+        margin: 0;
+    }
+
+    .ticks span {
+        position: relative;
+        text-align: center;
+    }
+
+    .ticks span::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -5px;
+        height: 4px;
+        width: 1px;
+        background: var(--muted-color);
+        opacity: .45;
+    }
+
+    .ticks span:first-child { text-align: left; }
+    .ticks span:last-child { text-align: right; }
+
+    .ticks-note {
+        margin-top: 8px;
+        color: var(--muted-color);
+        font-size: 10px;
+        line-height: 1.4;
     }
 
     .period-row {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        gap: 12px;
-        padding: 13px 0;
+        gap: 4px 12px;
+        padding: 14px 0;
         border-bottom: 1px solid var(--line-color);
-        font-size: 13px;
+        font-size: 14px;
     }
 
     .period-row:last-child {
@@ -254,19 +369,39 @@
     }
 
     .period-time .badge { box-shadow: none; }
+    .period-row .period-label { grid-column: 1; padding-left: 19px; font-size: 12px; text-align: left; }
 
     .period-row .detail {
         text-align: right;
         font-size: 11px;
     }
 
-    .data-warning {
-        padding: 12px 14px;
-        margin: 0 0 14px;
-        border: 1px solid rgba(246,200,95,.35);
-        border-radius: 14px;
-        background: rgba(246,200,95,.09);
-        color: var(--yellow);
+    .group-select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-color: var(--panel-bg);
+        color: var(--text-color);
+        border: 1px solid var(--glass-edge);
+        border-radius: 18px;
+        padding: 11px 30px 11px 13px;
+        font-size: 13px;
+        font-weight: 650;
+        max-width: 155px;
+        outline: none;
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.1), var(--shadow);
+        backdrop-filter: blur(18px) saturate(155%);
+        -webkit-backdrop-filter: blur(18px) saturate(155%);
+        background-image:
+            linear-gradient(45deg, transparent 50%, var(--muted-color) 50%),
+            linear-gradient(135deg, var(--muted-color) 50%, transparent 50%);
+        background-position:
+            calc(100% - 15px) 16px,
+            calc(100% - 10px) 16px;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+    }
+        background: var(--panel-bg);
+        color: var(--warning-text);
         font-size: 12px;
         line-height: 1.45;
     }
@@ -275,14 +410,16 @@
         display: block;
         width: 100%;
         padding: 15px;
-        border-radius: 16px;
-        border: 1px solid var(--line-color);
+        border-radius: 21px;
+        border: 1px solid var(--glass-edge);
         background: var(--panel-bg);
         color: var(--text-color);
+        backdrop-filter: blur(22px) saturate(160%);
+        -webkit-backdrop-filter: blur(22px) saturate(160%);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.11), var(--shadow);
         font-size: 14px;
         font-weight: 700;
         margin-top: 6px;
-        box-shadow: var(--shadow);
         cursor: pointer;
         transition: opacity .2s, transform .15s;
     }
@@ -307,19 +444,13 @@
 
         .card {
             padding: 16px;
-            border-radius: 19px;
+            border-radius: 24px;
         }
 
         .headline { font-size: 17px; }
 
         .period-row { gap: 8px; }
-
-        .period-time {
-            gap: 6px;
-            font-size: 12px;
-        }
-
-        .period-row .detail { font-size: 10px; }
+        .period-row .period-label { font-size: 11px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -340,7 +471,7 @@
 
             <h1>POWER / KYIV</h1>
 
-            <span id="update-label" class="detail">YASNO · Завантаження</span>
+            <span id="update-label" class="detail">YASNO · оновлюю…</span>
 
         </div>
 
@@ -369,7 +500,7 @@
     <div id="data-warning" class="data-warning" role="status"
          aria-live="polite" hidden></div>
 
-    <div class="card">
+    <div class="card status-card" id="status-card" data-state="unknown">
 
         <div class="headline">
 
@@ -383,14 +514,21 @@
 
         <div id="detail-text" class="detail">Отримання графіка...</div>
 
+        <div id="countdown" class="countdown" role="timer" aria-live="off" hidden></div>
+
         <div id="timeline-bar" class="timeline"></div>
 
         <div class="ticks">
+            <span>00</span><span>03</span><span>06</span>
+            <span>09</span><span>12</span><span>15</span>
+            <span>18</span><span>21</span><span>24</span>
+        </div>
+        <div class="ticks-note">24 години · кожен сегмент — 1 година</div>
 
-            <span>00</span><span>06</span><span>12</span>
-
-            <span>18</span><span>24</span>
-
+        <div class="timeline-legend" aria-label="Пояснення графіка">
+            <span class="legend-item"><i class="legend-swatch" style="background:var(--outage)"></i>Відключення</span>
+            <span class="legend-item"><i class="legend-swatch" style="background:var(--green)"></i>Світло є</span>
+            <span class="legend-item"><i class="legend-swatch" style="background:var(--yellow)"></i>Немає даних</span>
         </div>
 
     </div>
@@ -436,6 +574,9 @@
         let loading = false;
 
         let refreshTimer = null;
+        let countdownTarget = null;
+        let countdownRefreshRequested = false;
+        let countdownTimer = null;
 
         const $ = id => document.getElementById(id);
 
@@ -466,7 +607,7 @@
                 hour: "2-digit",
 
                 minute: "2-digit",
-
+                second: "2-digit",
                 hourCycle: "h23"
 
             }).formatToParts(new Date());
@@ -477,7 +618,7 @@
 
             );
 
-            return { hour: get("hour"), minute: get("minute") };
+            return { hour: get("hour"), minute: get("minute"), second: get("second") };
 
         }
 
@@ -553,15 +694,19 @@
             const sourceUpdatedAt = data.updatedOn
                 ? formatKyivTimestamp(data.updatedOn)
                 : null;
+            const fetchedDate = data.dataFetchedAt ? new Date(data.dataFetchedAt) : null;
+            const fetchedTime = fetchedDate && !Number.isNaN(fetchedDate.getTime())
+                ? new Intl.DateTimeFormat("uk-UA", {
+                    timeZone: "Europe/Kyiv", hour: "2-digit", minute: "2-digit"
+                }).format(fetchedDate)
+                : null;
 
-            $("update-label").textContent = data.dataFetchedAt
-                ? "YASNO · дані отримано " + fetchedAt + " за Києвом"
-                : "YASNO · час отримання невідомий";
-
-            if (sourceUpdatedAt) {
-                $("update-label").textContent +=
-                    " · у YASNO оновлено " + sourceUpdatedAt;
-            }
+            $("update-label").textContent = fetchedTime
+                ? "YASNO · оновлено о " + fetchedTime
+                : "YASNO · час оновлення невідомий";
+            $("update-label").title = sourceUpdatedAt
+                ? "Джерело оновило графік: " + sourceUpdatedAt + " за Києвом"
+                : "Час показано за Києвом";
 
             const warning = $("data-warning");
             warning.hidden = !data.dataIsStale;
@@ -582,6 +727,99 @@
 
         }
 
+        function clearCountdown() {
+            countdownTarget = null;
+            countdownRefreshRequested = false;
+            $("countdown").hidden = true;
+            $("countdown").textContent = "";
+        }
+
+        function updateScheduleCountdown(slots, nowMinutes, data) {
+            const supportedStatuses = [
+                "WaitingForSchedule",
+                "ScheduleApplies",
+                "NoShutdowns",
+                "PlannedShutdowns"
+            ];
+
+            if (
+                currentDay !== "today" ||
+                data.dataIsStale ||
+                !supportedStatuses.includes(data.status)
+            ) {
+                clearCountdown();
+                return;
+            }
+
+            const activeOutage = slots.find(slot =>
+                isOutage(slot) &&
+                nowMinutes >= slot.start &&
+                nowMinutes < slot.end
+            );
+
+            if (activeOutage) {
+                countdownTarget = {
+                    minutes: activeOutage.end,
+                    state: "on",
+                    label: "До ввімкнення за графіком"
+                };
+            } else {
+                const nextOutage = slots
+                    .filter(slot => isOutage(slot) && slot.start > nowMinutes)
+                    .sort((a, b) => a.start - b.start)[0];
+
+                if (!nextOutage) {
+                    clearCountdown();
+                    return;
+                }
+
+                countdownTarget = {
+                    minutes: nextOutage.start,
+                    state: "off",
+                    label: "До вимкнення за графіком"
+                };
+            }
+
+            countdownRefreshRequested = false;
+            renderCountdown();
+        }
+
+        function renderCountdown() {
+            const element = $("countdown");
+
+            if (!countdownTarget) {
+                element.hidden = true;
+                return;
+            }
+
+            const { hour, minute, second } = kyivParts();
+            const nowSeconds = hour * 3600 + minute * 60 + second;
+            const remaining = countdownTarget.minutes * 60 - nowSeconds;
+
+            element.hidden = false;
+            element.dataset.state = countdownTarget.state;
+
+            if (remaining <= 0) {
+                element.textContent =
+                    countdownTarget.label + " · час настав, оновлюю графік…";
+
+                if (!countdownRefreshRequested) {
+                    countdownRefreshRequested = true;
+                    setTimeout(() => loadDashboard(), 1200);
+                }
+
+                return;
+            }
+
+            const hours = Math.floor(remaining / 3600);
+            const minutes = Math.floor((remaining % 3600) / 60);
+            const seconds = remaining % 60;
+            const duration = hours > 0
+                ? hours + " год " + String(minutes).padStart(2, "0") + " хв"
+                : minutes + " хв " + String(seconds).padStart(2, "0") + " с";
+
+            element.textContent = countdownTarget.label + " · " + duration;
+        }
         function normalizeType(slot) {
 
             return String(slot?.type || "")
@@ -620,8 +858,11 @@
 
         function setError(message) {
 
+            clearCountdown();
+
             $("status-dot").style.backgroundColor = "var(--yellow)";
             $("headline-text").innerText = "Немає актуальних даних";
+            $("status-card").dataset.state = "unknown";
             $("schedule-date").textContent = "";
             $("detail-text").innerText = message;
             $("timeline-bar").replaceChildren();
@@ -715,6 +956,8 @@
 
         function switchDay(day) {
 
+            clearCountdown();
+
             currentDay = day;
 
             $("tab-today").classList.toggle("active", day === "today");
@@ -726,6 +969,8 @@
         }
 
         $("group-select").addEventListener("change", event => {
+
+            clearCountdown();
 
             currentGroup = event.target.value;
 
@@ -815,7 +1060,7 @@
 
                 if (matches.some(isOutage)) {
 
-                    segment.style.backgroundColor = "var(--red)";
+                    segment.style.backgroundColor = "var(--outage)";
 
                 } else if (
 
@@ -881,7 +1126,7 @@
 
                 dot.style.backgroundColor = interval.isOff
 
-                    ? "var(--red)"
+                    ? "var(--outage)"
 
                     : "var(--green)";
 
@@ -899,7 +1144,7 @@
 
                 const label = document.createElement("span");
 
-                label.className = "detail";
+                label.className = "detail period-label";
 
                 label.textContent = interval.isOff
 
@@ -907,7 +1152,10 @@
 
                     : "Світло є за графіком";
 
-                row.append(time, label);
+                const state = document.createElement("span");
+                state.className = "detail";
+                state.textContent = interval.isOff ? "Без світла" : "Є світло";
+                row.append(time, state, label);
 
                 container.appendChild(row);
 
@@ -971,6 +1219,8 @@
 
                 if (data.status === "EmergencyShutdowns") {
 
+                    $("status-card").dataset.state = "unknown";
+
                     $("status-dot").style.backgroundColor = "var(--yellow)";
 
                     $("headline-text").textContent = "Аварійний режим";
@@ -999,7 +1249,9 @@
 
                     if (active) {
 
-                        $("status-dot").style.backgroundColor = "var(--red)";
+                        $("status-card").dataset.state = "off";
+
+                        $("status-dot").style.backgroundColor = "var(--outage)";
 
                         $("headline-text").textContent = "Відключення за графіком";
 
@@ -1008,6 +1260,8 @@
                             `За графіком до ${hhmm(active.end)}`;
 
                     } else if (hasSchedule) {
+
+                        $("status-card").dataset.state = "on";
 
                         $("status-dot").style.backgroundColor = "var(--green)";
 
@@ -1023,6 +1277,7 @@
 
                         $("status-dot").style.backgroundColor = "var(--yellow)";
 
+                        $("status-card").dataset.state = "unknown";
                         $("headline-text").textContent = "Перевір статус графіка";
 
                         $("detail-text").textContent =
@@ -1032,9 +1287,14 @@
                     }
 
                 } else {
-
+                    const tomorrowHasOutage = slots.some(isOutage);
+                    const tomorrowStatus = data.status === "NoShutdowns"
+                        ? "on"
+                        : tomorrowHasOutage ? "off" : "unknown";
+                    $("status-card").dataset.state = tomorrowStatus;
                     $("status-dot").style.backgroundColor =
-                        data.status === "NoShutdowns" ? "var(--green)" : "var(--yellow)";
+                        tomorrowStatus === "on" ? "var(--green)" :
+                        tomorrowStatus === "off" ? "var(--outage)" : "var(--yellow)";
 
                     $("headline-text").textContent =
                         data.status === "NoShutdowns"
@@ -1045,6 +1305,8 @@
                         "Черга " + currentGroup + " · " + scheduleStatusLabel(data.status);
 
                 }
+
+                updateScheduleCountdown(slots, nowMinutes, data);
 
                 renderTimeline(slots, nowMinutes);
 
@@ -1083,6 +1345,10 @@
             if (refreshTimer) clearInterval(refreshTimer);
 
             refreshTimer = setInterval(() => loadDashboard(), REFRESH_MS);
+
+            if (!countdownTimer) {
+                countdownTimer = setInterval(renderCountdown, 1000);
+            }
 
         }
 

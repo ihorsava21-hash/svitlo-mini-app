@@ -4,7 +4,7 @@ import time
 import logging
 import threading
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.request import Request, urlopen
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -38,6 +38,7 @@ API_PORT = int(os.environ.get("PORT", "8080"))
 CACHE_SECONDS = 60
 REQUEST_TIMEOUT = 15
 ALERT_CHECK_SECONDS = 300
+ALERT_LEAD_MINUTES = 15
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,6 +54,7 @@ user_groups = {}
 # Підписки та попередні версії графіків скидаються після перезапуску Render.
 alert_subscribers = {}
 schedule_fingerprints = {}
+sent_schedule_reminders = set()
 alert_lock = threading.Lock()
 
 # Кеш даних YASNO
@@ -445,12 +447,53 @@ def clear_schedule_baseline(group):
             schedule_fingerprints.pop((group, day), None)
 
 
+def get_upcoming_schedule_reminders(group_data, now):
+    """Повертає планові переходи в межах вікна попередження."""
+    events = []
+    for day in ("today", "tomorrow"):
+        day_data = group_data.get(day) if isinstance(group_data, dict) else None
+        if not isinstance(day_data, dict) or day_data.get("status") not in ("ScheduleApplies", "PlannedShutdowns"):
+            continue
+        try:
+            event_date = date.fromisoformat(str(day_data.get("date"))[:10])
+        except (TypeError, ValueError):
+            continue
+        slots = day_data.get("slots")
+        if not isinstance(slots, list):
+            continue
+        outages = []
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            kind = str(slot.get("type", "")).lower().replace("_", "").replace("-", "")
+            start, end = slot.get("start"), slot.get("end")
+            if kind in ("definite", "definiteoutage") and isinstance(start, (int, float)) and not isinstance(start, bool) and isinstance(end, (int, float)) and not isinstance(end, bool) and 0 <= start < end <= 1440:
+                outages.append((int(start), int(end)))
+        merged = []
+        for start, end in sorted(outages):
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+        for start, end in merged:
+            for minute, event_kind, label in (
+                (start, "off", "планове вимкнення"),
+                (end, "on", "планове відновлення електропостачання"),
+            ):
+                event_at = datetime.combine(event_date, datetime.min.time(), KYIV_TZ) + timedelta(minutes=minute)
+                minutes_left = (event_at - now).total_seconds() / 60
+                if 0 < minutes_left <= ALERT_LEAD_MINUTES:
+                    events.append((event_date.isoformat(), event_kind, minute, label, event_at))
+    return events
+
 def check_schedule_changes():
     data = fetch_yasno_data(force_refresh=True)
     if data is None or get_yasno_cache_metadata()["dataIsStale"]:
         return
 
     changes = []
+    reminders = []
+    now = kyiv_now()
     with alert_lock:
         for group in get_groups(data):
             group_data = data.get(group)
@@ -465,6 +508,12 @@ def check_schedule_changes():
                 schedule_fingerprints[key] = fingerprint
         subscribers = list(alert_subscribers.items())
 
+        for group in get_groups(data):
+            for event_date, kind, minute, label, event_at in get_upcoming_schedule_reminders(data.get(group), now):
+                key = (group, event_date, kind, minute)
+                if key not in sent_schedule_reminders:
+                    reminders.append((key, group, label, event_at))
+
     for group, day in changes:
         message_text = "🔔 Графік YASNO змінився.\n\n" + format_schedule_for_telegram(group, day)
         target_chats = {
@@ -478,6 +527,27 @@ def check_schedule_changes():
             except Exception:
                 logging.exception("Не вдалося надіслати сповіщення про зміну графіка")
 
+
+    for reminder_key, group, label, event_at in reminders:
+        message_text = (
+            f"⏰ За графіком YASNO через {ALERT_LEAD_MINUTES} хв — {label}.\n"
+            f"Черга: {group}\n"
+            f"Очікуваний час: {event_at.strftime('%H:%M')} за Києвом.\n\n"
+            "Це нагадування за планом, а не підтвердження фактичного стану мережі."
+        )
+        target_chats = {chat_id for user_id, chat_id in subscribers if get_user_group(user_id) == group}
+        if not target_chats:
+            continue
+        sent_any = False
+        for chat_id in target_chats:
+            try:
+                bot.send_message(chat_id, message_text)
+                sent_any = True
+            except Exception:
+                logging.exception("Не вдалося надіслати нагадування про подію графіка")
+        if sent_any:
+            with alert_lock:
+                sent_schedule_reminders.add(reminder_key)
 
 def run_schedule_alert_monitor():
     while True:
@@ -597,7 +667,7 @@ def subscribe_command(message):
         message.chat.id,
         (
             f"🔔 Сповіщення увімкнено для черги {group}. "
-            "Напишу, коли графік YASNO на сьогодні або завтра зміниться. "
+            "Напишу про зміни графіка та за 15 хвилин до планового вимкнення чи відновлення. "
             "Після перезапуску бота підписку потрібно буде ввімкнути знову."
         ),
         reply_markup=main_keyboard(),
