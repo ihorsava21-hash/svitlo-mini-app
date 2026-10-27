@@ -435,6 +435,67 @@
             transition-duration: .01ms !important;
         }
     }
+
+    :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg-color: #121318; --panel-bg: rgba(43,45,66,.72); --text-color: #F5F5F5;
+        --muted-color: rgba(245,245,245,.76); --line-color: rgba(245,245,245,.16);
+        --glass-edge: rgba(245,245,245,.28); --ambient-lime: rgba(198,255,0,.18);
+        --ambient-red: rgba(255,61,87,.06); --ambient-surface: rgba(43,45,66,.55);
+        --green: #C6FF00; --outage: #FF3D57; --yellow: #F5F5F5;
+        --warning-text: #F5F5F5; --empty: #2B2D42; --active-tab: #C6FF00;
+        --active-tab-text: #121318; --accent: #F5F5F5; --shadow: 0 16px 42px rgba(18,19,24,.26);
+    }
+    :root[data-theme="light"] {
+        color-scheme: light;
+        --bg-color: #F5F5F5; --panel-bg: rgba(43,45,66,.08); --text-color: #121318;
+        --muted-color: #2B2D42; --line-color: rgba(18,19,24,.12); --glass-edge: rgba(43,45,66,.2);
+        --ambient-lime: rgba(198,255,0,.16); --ambient-red: rgba(255,61,87,.08);
+        --ambient-surface: rgba(43,45,66,.06); --green: #C6FF00; --outage: #FF3D57;
+        --yellow: #2B2D42; --warning-text: #121318; --empty: rgba(18,19,24,.12);
+        --active-tab: #2B2D42; --active-tab-text: #F5F5F5; --accent: #FF3D57;
+        --shadow: 0 8px 24px rgba(18,19,24,.07);
+    }
+    .header-tools { display:flex; align-items:center; gap:8px; }
+    .settings-toggle, .setting-action {
+        min-height:42px; padding:9px 12px; border:1px solid var(--glass-edge);
+        border-radius:16px; background:var(--panel-bg); color:var(--text-color);
+        font-size:13px; font-weight:700; cursor:pointer;
+        backdrop-filter:blur(18px) saturate(155%); -webkit-backdrop-filter:blur(18px) saturate(155%);
+    }
+    .settings-toggle[aria-expanded="true"] { border-color:var(--accent); }
+    .settings-panel[hidden] { display:none; }
+    .settings-panel { padding:16px; }
+    .settings-title { margin-bottom:12px; font-weight:750; }
+    .setting-row {
+        display:flex; justify-content:space-between; align-items:center; gap:12px;
+        padding:9px 0; color:var(--text-color); font-size:14px;
+    }
+    .setting-select {
+        min-height:40px; max-width:175px; padding:8px 11px;
+        border:1px solid var(--glass-edge); border-radius:14px;
+        background:var(--panel-bg); color:var(--text-color); font:inherit;
+    }
+    .setting-check { display:flex; align-items:center; gap:10px; cursor:pointer; }
+    .setting-check input { width:18px; height:18px; accent-color:var(--active-tab); }
+    .setting-action { width:100%; margin-top:12px; }
+    :root[data-text-size="large"] .detail { font-size:15px; }
+    :root[data-text-size="large"] .header h1 { font-size:21px; }
+    :root[data-text-size="large"] .tab-btn { min-height:54px; font-size:17px; }
+    :root[data-text-size="large"] .headline { font-size:22px; }
+    :root[data-text-size="large"] .status-card #detail-text { font-size:16px; }
+    :root[data-text-size="large"] .countdown { font-size:15px; }
+    :root[data-text-size="large"] .ticks,
+    :root[data-text-size="large"] .ticks-note,
+    :root[data-text-size="large"] .timeline-legend { font-size:13px; }
+    :root[data-text-size="large"] .period-row { font-size:16px; }
+    :root[data-text-size="large"] .period-row .period-label,
+    :root[data-text-size="large"] .period-row .detail { font-size:14px; }
+    :root[data-density="compact"] .header { margin-bottom:12px; }
+    :root[data-density="compact"] .card { padding:14px; border-radius:22px; margin-bottom:10px; }
+    :root[data-density="compact"] .status-card { padding:16px; }
+    :root[data-density="compact"] .period-row { padding:9px 0; }
+    :root[data-density="compact"] .timeline { margin-top:14px; }
 </style>
 
 
@@ -452,16 +513,40 @@
 
         </div>
 
-        <select id="group-select" class="group-select"
+        <div class="header-tools">        <select id="group-select" class="group-select"
 
                 aria-label="Вибір черги">
 
             <option value="35.1">Черга 35.1</option>
 
-        </select>
+        </select>        <button id="settings-toggle" class="settings-toggle" type="button" aria-label="Налаштування вигляду" aria-expanded="false" aria-controls="settings-panel" title="Налаштування вигляду">⚙</button>
+        </div>
 
     </div>
 
+    <section id="settings-panel" class="card settings-panel" aria-label="Налаштування вигляду" hidden>
+        <div class="settings-title">Налаштування вигляду</div>
+        <label class="setting-row" for="theme-setting">
+            <span>Тема</span>
+            <select id="theme-setting" class="setting-select">
+                <option value="auto">Як у Telegram / системі</option>
+                <option value="dark">Темна</option>
+                <option value="light">Світла</option>
+            </select>
+        </label>
+        <label class="setting-row" for="text-size-setting">
+            <span>Розмір тексту</span>
+            <select id="text-size-setting" class="setting-select">
+                <option value="normal">Звичайний</option>
+                <option value="large">Збільшений</option>
+            </select>
+        </label>
+        <label class="setting-row setting-check" for="compact-setting">
+            <span>Компактне відображення</span>
+            <input id="compact-setting" type="checkbox">
+        </label>
+        <button id="add-home-screen" class="setting-action" type="button" hidden>Додати ярлик на головний екран</button>
+    </section>
     <div class="tabs">
 
         <button id="tab-today" class="tab-btn active"
@@ -556,6 +641,66 @@
         let countdownTimer = null;
 
         const $ = id => document.getElementById(id);
+        const APPEARANCE_KEY = "svitlo_appearance_v1";
+        function readAppearance() {
+            const defaults = { theme: "auto", textSize: "normal", compact: false };
+            try {
+                const saved = JSON.parse(localStorage.getItem(APPEARANCE_KEY) || "{}");
+                return {
+                    theme: ["auto", "dark", "light"].includes(saved.theme) ? saved.theme : defaults.theme,
+                    textSize: saved.textSize === "large" ? "large" : defaults.textSize,
+                    compact: saved.compact === true
+                };
+            } catch { return defaults; }
+        }
+        let appearance = readAppearance();
+        function applyAppearance() {
+            const telegramTheme = tg?.colorScheme;
+            const systemTheme = (telegramTheme === "light" || telegramTheme === "dark")
+                ? telegramTheme
+                : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+            document.documentElement.dataset.theme = appearance.theme === "auto" ? systemTheme : appearance.theme;
+            document.documentElement.dataset.textSize = appearance.textSize;
+            document.documentElement.dataset.density = appearance.compact ? "compact" : "comfortable";
+            $("theme-setting").value = appearance.theme;
+            $("text-size-setting").value = appearance.textSize;
+            $("compact-setting").checked = appearance.compact;
+        }
+        function saveAppearance() {
+            try { localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance)); } catch {}
+            applyAppearance();
+        }
+        applyAppearance();
+        $("settings-toggle").addEventListener("click", () => {
+            const panel = $("settings-panel");
+            panel.hidden = !panel.hidden;
+            $("settings-toggle").setAttribute("aria-expanded", String(!panel.hidden));
+        });
+        $("theme-setting").addEventListener("change", event => {
+            appearance.theme = event.target.value;
+            saveAppearance();
+        });
+        $("text-size-setting").addEventListener("change", event => {
+            appearance.textSize = event.target.value;
+            saveAppearance();
+        });
+        $("compact-setting").addEventListener("change", event => {
+            appearance.compact = event.target.checked;
+            saveAppearance();
+        });
+        if (tg && typeof tg.addToHomeScreen === "function") {
+            const homeScreenButton = $("add-home-screen");
+            homeScreenButton.hidden = false;
+            homeScreenButton.addEventListener("click", () => tg.addToHomeScreen());
+            tg.onEvent?.("homeScreenAdded", () => {
+                homeScreenButton.textContent = "Ярлик додано на головний екран";
+                homeScreenButton.disabled = true;
+            });
+            tg.onEvent?.("homeScreenFailed", () => {
+                homeScreenButton.textContent = "Не вдалося додати ярлик — спробуйте з меню Telegram";
+            });
+        }
+        tg?.onEvent?.("themeChanged", applyAppearance);
 
         function readSavedGroup() {
 
