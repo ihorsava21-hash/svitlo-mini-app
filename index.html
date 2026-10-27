@@ -148,35 +148,36 @@
         position: relative;
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 5px;
+        padding: 4px;
         gap: 0;
         margin-bottom: 14px;
         border: 1px solid var(--glass-edge);
-        border-radius: 24px;
-        background: rgba(43,45,66,.14);
+        border-radius: 999px;
+        background: rgba(43,45,66,.2);
         box-shadow: inset 0 1px 0 rgba(245,245,245,.12);
         backdrop-filter: blur(24px) saturate(175%);
         -webkit-backdrop-filter: blur(24px) saturate(175%);
         overflow: hidden;
         isolation: isolate;
+        touch-action: pan-y;
     }
 
     .tab-indicator {
         position: absolute;
         z-index: 0;
-        top: 5px;
-        bottom: 5px;
-        left: 5px;
-        width: calc((100% - 10px) / 2);
+        top: 3px;
+        bottom: 3px;
+        left: 3px;
+        width: calc((100% - 6px) / 2);
         border: 1px solid rgba(245,245,245,.26);
-        border-radius: 19px;
-        background: linear-gradient(145deg, rgba(245,245,245,.28), rgba(245,245,245,.09));
+        border-radius: 999px;
+        background: linear-gradient(145deg, rgba(245,245,245,.34), rgba(245,245,245,.12));
         box-shadow: inset 0 1px 0 rgba(245,245,245,.34),
                     inset 0 -1px 0 rgba(18,19,24,.08),
                     0 6px 16px rgba(18,19,24,.14);
         pointer-events: none;
         transform: translateX(0);
-        transition: transform .34s cubic-bezier(.2,.8,.2,1);
+        transition: transform .48s cubic-bezier(.22,1,.36,1);
         will-change: transform;
     }
 
@@ -192,6 +193,26 @@
 
     .status-card, .intervals-card { touch-action: pan-y; }
 
+    button {
+        border: 1px solid var(--glass-edge);
+        border-radius: 999px;
+        background: linear-gradient(145deg, rgba(245,245,245,.18), rgba(245,245,245,.06));
+        color: var(--text-color);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.2), 0 6px 18px rgba(18,19,24,.12);
+        backdrop-filter: blur(20px) saturate(165%);
+        -webkit-backdrop-filter: blur(20px) saturate(165%);
+        cursor: pointer;
+        transition: background .2s, border-color .2s, box-shadow .2s, transform .18s, opacity .2s;
+    }
+
+    button:hover:not(:disabled) {
+        background: linear-gradient(145deg, rgba(245,245,245,.25), rgba(245,245,245,.1));
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.26), 0 8px 22px rgba(18,19,24,.16);
+    }
+
+    button:active:not(:disabled) { transform: scale(.97); }
+    button:disabled { opacity: .55; cursor: wait; }
+
     .tab-btn {
         position: relative;
         z-index: 1;
@@ -200,14 +221,14 @@
         min-height: 50px;
         padding: 12px;
         border: 0;
-        border-radius: 19px;
+        border-radius: 999px;
         background: transparent;
         color: var(--muted-color);
         font-size: 15px;
         font-weight: 650;
         cursor: pointer;
         touch-action: pan-y;
-        transition: color .2s, transform .15s, font-weight .2s;
+        transition: color .2s, font-weight .2s;
     }
 
     .tab-btn.active {
@@ -425,25 +446,23 @@
         width: 100%;
         min-height: 54px;
         padding: 16px;
-        border-radius: 21px;
+        border-radius: 999px;
         border: 1px solid var(--glass-edge);
-        background: var(--panel-bg);
+        background: linear-gradient(145deg, rgba(245,245,245,.2), rgba(245,245,245,.07));
         color: var(--text-color);
         backdrop-filter: blur(22px) saturate(160%);
         -webkit-backdrop-filter: blur(22px) saturate(160%);
-        box-shadow: inset 0 1px 0 rgba(245,245,245,.11), var(--shadow);
+        box-shadow: inset 0 1px 0 rgba(245,245,245,.2), var(--shadow);
         font-size: 16px;
         font-weight: 700;
         margin: 14px auto 0;
         cursor: pointer;
-        transition: opacity .2s, transform .15s;
+        transition: opacity .2s, transform .18s, background .2s;
     }
 
     .btn-refresh:disabled { opacity: .55; }
 
     button, select { font-family: inherit; }
-
-    button:active { transform: scale(.985); }
 
     button:focus-visible,
     select:focus-visible {
@@ -497,7 +516,7 @@
     .header-tools { display:flex; align-items:center; gap:8px; }
     .settings-toggle, .setting-action {
         min-height:42px; padding:9px 12px; border:1px solid var(--glass-edge);
-        border-radius:16px; background:var(--panel-bg); color:var(--text-color);
+        border-radius:999px; background:linear-gradient(145deg, rgba(245,245,245,.2), rgba(245,245,245,.07)); color:var(--text-color);
         font-size:13px; font-weight:700; cursor:pointer;
         backdrop-filter:blur(18px) saturate(155%); -webkit-backdrop-filter:blur(18px) saturate(155%);
     }
@@ -510,8 +529,8 @@
         padding:9px 0; color:var(--text-color); font-size:14px;
     }
     .setting-select {
-        min-height:40px; max-width:175px; padding:8px 11px;
-        border:1px solid var(--glass-edge); border-radius:14px;
+        min-height:40px; max-width:175px; padding:8px 16px;
+        border:1px solid var(--glass-edge); border-radius:999px;
         background:var(--panel-bg); color:var(--text-color); font:inherit;
     }
     .setting-check { display:flex; align-items:center; gap:10px; cursor:pointer; }
@@ -1137,22 +1156,41 @@
 
         function enableDaySwipe(zone) {
             let start = null;
+            let lastTouchAt = 0;
+
+            const finishSwipe = (dx, dy) => {
+                if (Math.abs(dx) < 36 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+                switchDay(dx < 0 ? "tomorrow" : "today");
+            };
+
+            zone.addEventListener("touchstart", event => {
+                if (event.touches.length !== 1) return;
+                const touch = event.touches[0];
+                start = { x: touch.clientX, y: touch.clientY };
+                lastTouchAt = Date.now();
+            }, { passive: true });
+            zone.addEventListener("touchend", event => {
+                if (!start) return;
+                const touch = event.changedTouches[0];
+                finishSwipe(touch.clientX - start.x, touch.clientY - start.y);
+                start = null;
+                lastTouchAt = Date.now();
+            }, { passive: true });
+            zone.addEventListener("touchcancel", () => { start = null; }, { passive: true });
+
             zone.addEventListener("pointerdown", event => {
-                if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+                if (Date.now() - lastTouchAt < 500 || event.pointerType === "mouse") return;
                 start = { x: event.clientX, y: event.clientY };
-                try { zone.setPointerCapture(event.pointerId); } catch {}
             }, { passive: true });
             zone.addEventListener("pointerup", event => {
-                if (!start) return;
-                const dx = event.clientX - start.x;
-                const dy = event.clientY - start.y;
+                if (!start || Date.now() - lastTouchAt < 500) return;
+                finishSwipe(event.clientX - start.x, event.clientY - start.y);
                 start = null;
-                if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
-                switchDay(dx < 0 ? "tomorrow" : "today");
             }, { passive: true });
             zone.addEventListener("pointercancel", () => { start = null; }, { passive: true });
         }
 
+        enableDaySwipe($("day-switch"));
         enableDaySwipe($("status-card"));
         enableDaySwipe($("intervals-card"));
         $("group-select").addEventListener("change", event => {
